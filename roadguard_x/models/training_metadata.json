@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-03-25T08:52:52.508713+00:00",
+  "n_samples": 5000,
+  "class_distribution": {
+    "LOW": 2500,
+    "MEDIUM": 1750,
+    "HIGH": 750
+  },
+  "feature_importances": {
+    "scene_complexity_index": 0.2958259597165887,
+    "motion_variance": 0.19635604814360386,
+    "lane_offset_norm": 0.18181601399901262,
+    "object_count": 0.13637850852133412,
+    "avg_speed": 0.10367284964032585,
+    "avg_object_area": 0.040959746951980736,
+    "direction_consistency": 0.036792898519903305,
+    "edge_density": 0.005852362885635847,
+    "brightness": 0.0023456116216150165
+  },
+  "sklearn_version": "1.8.0"
+}

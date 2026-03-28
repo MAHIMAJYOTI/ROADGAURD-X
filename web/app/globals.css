@@ -1,0 +1,241 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0c0e12;
+  --panel: #141820;
+  --border: #252b36;
+  --accent: #3b82f6;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100 antialiased;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.55s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in-up 0.45s ease-out forwards;
+}
+
+/* Status strip: smooth opacity without layout thrash */
+.status-layer {
+  transition: opacity 280ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-layer {
+    transition: none;
+  }
+}
+
+/* Futuristic background and subtle HUD effects */
+.rg-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 600px at 70% 20%, rgba(56, 189, 248, 0.18), transparent 55%),
+    radial-gradient(900px 500px at 20% 10%, rgba(99, 102, 241, 0.16), transparent 55%),
+    radial-gradient(700px 520px at 50% 80%, rgba(16, 185, 129, 0.08), transparent 60%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.4) 0%, rgba(2, 6, 23, 0.9) 100%);
+}
+
+.rg-bg::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background-image: repeating-linear-gradient(
+      to right,
+      rgba(148, 163, 184, 0.12) 0px,
+      rgba(148, 163, 184, 0.12) 1px,
+      transparent 1px,
+      transparent 70px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(148, 163, 184, 0.08) 0px,
+      rgba(148, 163, 184, 0.08) 1px,
+      transparent 1px,
+      transparent 60px
+    );
+  transform: translateZ(0);
+  animation: rg-grid-slide 10s linear infinite;
+  opacity: 0.7;
+  filter: blur(0.2px);
+}
+
+.rg-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    to bottom,
+    rgba(148, 163, 184, 0.06) 0%,
+    rgba(148, 163, 184, 0.02) 40%,
+    rgba(148, 163, 184, 0.0) 70%
+  );
+  animation: rg-scan 3.2s ease-in-out infinite;
+  mix-blend-mode: screen;
+  opacity: 0.35;
+}
+
+@keyframes rg-grid-slide {
+  from {
+    transform: translate3d(0, 0, 0) rotate(-8deg);
+  }
+  to {
+    transform: translate3d(0, 120px, 0) rotate(-8deg);
+  }
+}
+
+@keyframes rg-scan {
+  0%,
+  100% {
+    transform: translate3d(0, -18px, 0);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translate3d(0, 18px, 0);
+    opacity: 0.45;
+  }
+}
+
+.rg-tilt {
+  transform-style: preserve-3d;
+  perspective: 900px;
+  transition: transform 160ms ease, border-color 200ms ease;
+  will-change: transform;
+}
+
+.rg-tilt::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: radial-gradient(
+    600px 160px at 50% 0%,
+    rgba(56, 189, 248, 0.18),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 240ms ease;
+  transform: translateZ(20px);
+  pointer-events: none;
+}
+
+.rg-tilt:hover::after {
+  opacity: 1;
+}
+
+.rg-holo-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+      circle at 50% 50%,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0.06) 35%,
+      rgba(255, 255, 255, 0.0) 60%
+    ),
+    conic-gradient(
+      from 220deg,
+      rgba(56, 189, 248, 0.0) 0deg,
+      rgba(56, 189, 248, 0.65) 55deg,
+      rgba(99, 102, 241, 0.6) 120deg,
+      rgba(56, 189, 248, 0.0) 200deg,
+      rgba(16, 185, 129, 0.55) 260deg,
+      rgba(56, 189, 248, 0.0) 360deg
+    );
+  filter: blur(0.2px);
+  opacity: 0.75;
+  animation: rg-holo-spin 2.2s linear infinite;
+}
+
+.rg-holo-scan {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0px,
+    rgba(255, 255, 255, 0.12) 1px,
+    rgba(255, 255, 255, 0.0) 7px,
+    rgba(255, 255, 255, 0.0) 10px
+  );
+  mix-blend-mode: overlay;
+  opacity: 0.35;
+  animation: rg-holo-scan 1.6s ease-in-out infinite;
+}
+
+@keyframes rg-holo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rg-holo-scan {
+  0%,
+  100% {
+    transform: translateY(-10%);
+  }
+  50% {
+    transform: translateY(10%);
+  }
+}
+
+/* SVG bar growth animation */
+.rg-bar-rect {
+  transform-box: fill-box;
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: rg-bar-grow 900ms ease-out forwards;
+}
+
+@keyframes rg-bar-grow {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* HTML risk bar fill animation */
+.rg-fill-rect {
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: rg-fill-grow 850ms ease-out forwards;
+}
+
+@keyframes rg-fill-grow {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rg-bar-rect,
+  .rg-fill-rect {
+    animation: none;
+    transform: none;
+  }
+}
