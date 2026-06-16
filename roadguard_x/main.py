@@ -460,6 +460,29 @@ def main() -> None:
     report_path = _ROOT / "output" / "report.json"
     summary_payload = stats.summary()
     summary_payload["danger_clips_saved"] = clip_writer.clip_count
+    explanation_meta: dict | None = None
+    if last_frame_snapshot:
+        primary = str(last_frame_snapshot.get("primary_cause") or "composite_risk")
+        reasons = list(last_frame_snapshot.get("reasons") or [])
+        contribs = dict(last_frame_snapshot.get("feature_contributions") or {})
+        conf_val = float(last_frame_snapshot.get("confidence") or 0.0)
+        risk_val = str(last_frame_snapshot.get("risk") or "LOW")
+        reason_text = (
+            "; ".join(reasons) if reasons else "No rule triggers; model confidence is primary."
+        )
+        explanation_meta = {
+            "risk": risk_val,
+            "confidence": conf_val,
+            "primary_cause": primary,
+            "reasons": reasons,
+            "feature_contributions": contribs,
+            "top_features": list(contribs.keys()),
+            "summary": (
+                f"{risk_val} risk ({conf_val * 100:.1f}% confidence). "
+                f"Primary cause: {primary.replace('_', ' ')}. {reason_text}"
+            ),
+        }
+
     report_meta = {
         "source": "file" if args.input is not None else args.source,
         "sample_file": sample_path.name if file_mode else None,
@@ -468,6 +491,7 @@ def main() -> None:
         "dataset_appended": args.collect_data,
         "video_saved": OUTPUT_VIDEO.exists() and OUTPUT_VIDEO.stat().st_size > 0,
         "last_frame": last_frame_snapshot,
+        "explanation": explanation_meta,
     }
     write_report(
         report_path,

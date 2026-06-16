@@ -1,10 +1,23 @@
 # RoadGuard-X — Context-Aware Driving Intelligence System
 
-RoadGuard-X is an offline, explainable driving-scene risk analysis system. it combines classical OpenCV computer vision with a scikit-learn Random Forest to analyze driving video and output per-frame risk levels (LOW / MEDIUM / HIGH) along with human-readable explanations. the entire pipeline runs locally without cloud APIs or downloaded weights, and the pre-trained model artifact is committed to the repo.
+RoadGuard-X is an offline, explainable driving-scene risk analysis system. It combines classical OpenCV computer vision with a scikit-learn Random Forest to analyze driving video and output per-frame risk levels (LOW / MEDIUM / HIGH) along with human-readable explanations. The entire pipeline runs locally without cloud APIs or downloaded weights, and the pre-trained model artifact is committed to the repo.
+
+## Features
+
+- **Classical CV pipeline:** preprocessing, lane detection, K-means segmentation, MOG2 tracking
+- **ML risk classifier:** Random Forest on 9 engineered features → LOW / MEDIUM / HIGH
+- **Explainability:** rule-based reasons, primary cause, confidence, feature contributions
+- **Model evaluation:** held-out test metrics, confusion matrix, classification report
+- **CLI:** webcam, sample video, custom files, headless mode, danger clips, live HUD
+- **REST API:** FastAPI upload + polling + artifact serving
+- **Web dashboard:** Next.js UI with processed video, metrics, timeline, and model evaluation panel
+- **Offline-first:** no GPU, no cloud inference, reproducible after clone
 
 ## table of contents
 
+- [Features](#features)
 - [What it does](#what-it-does)
+- [Results](#results)
 - [Architecture overview](#architecture-overview)
 - [Tech stack](#tech-stack)
 - [Project structure](#project-structure)
@@ -18,6 +31,7 @@ RoadGuard-X is an offline, explainable driving-scene risk analysis system. it co
 - [Optional frontend setup](#optional-frontend-setup)
 - [Model training](#model-training)
 - [Testing and validation](#testing-and-validation)
+- [Deployment](#deployment)
 - [Known limitations](#known-limitations)
 - [Course syllabus coverage](#course-syllabus-coverage)
 - [License](#license)
@@ -34,6 +48,30 @@ Key outputs are written to `roadguard_x/output/`:
 - `summary.png` is a grid of the most dangerous frames (and a small fallback set if fewer HIGH frames exist).
 - `risk_timeline.png` visualizes confidence and scene complexity over the full session, with lane departure events marked.
 - `output/clips/clip_001.mp4`, `clip_002.mp4`, etc are extracted short clips around HIGH-risk moments when `--save-clips` is enabled.
+
+## Results
+
+Model evaluation metrics are produced by `roadguard_x/train_model.py` on a **held-out 20% test split** (stratified) and saved to `roadguard_x/models/training_metadata.json`. Visual artifacts are written to `roadguard_x/output/`.
+
+Current Random Forest performance (synthetic training set, 5,000 samples):
+
+- Random Forest trained on **5,000** synthetic samples (**4,000** train / **1,000** test)
+- **9** engineered computer vision features
+- **Accuracy:** 99.60%
+- **Precision (macro):** 0.9949
+- **Recall (macro):** 0.9955
+- **F1-score (macro):** 0.9952
+- Explainable **LOW / MEDIUM / HIGH** predictions with rule-based reasons and feature contributions
+- Offline inference without cloud APIs
+
+Per-class test F1: LOW 0.9980 · MEDIUM 0.9943 · HIGH 0.9933
+
+Evaluation artifacts (after running `python train_model.py` from `roadguard_x/`):
+
+- `roadguard_x/output/confusion_matrix.png`
+- `roadguard_x/output/classification_report.txt`
+
+Hyperparameters: `n_estimators=100`, `max_depth=8`, `class_weight=balanced`, `random_state=42`.
 
 ## Architecture overview
 
@@ -141,7 +179,7 @@ roadguard_x/
 ├── train_model.py                 # model training script (calibrated synthetic data)
 ├── models/
 │   ├── risk_model.pkl             # pre-trained Random Forest (committed)
-│   └── training_metadata.json    # feature importances and training stats (committed)
+│   └── training_metadata.json    # feature importances, evaluation metrics (committed)
 ├── modules/
 │   ├── preprocess.py              # preprocessing steps (blur, clahe, gamma)
 │   ├── lane.py                    # lane detection + lane offset estimation
@@ -159,10 +197,12 @@ roadguard_x/
 │   └── heatmap.py               # scene complexity heatmap overlay
 ├── samples/
 │   └── street.mp4               # generated locally via `generate_sample.py`
-└── output/                       # created at runtime
+└── output/                       # created at runtime (or by train_model.py)
     ├── report.json
     ├── summary.png
     ├── risk_timeline.png
+    ├── confusion_matrix.png      # model evaluation (train_model.py)
+    ├── classification_report.txt # model evaluation (train_model.py)
     └── clips/
 
 api/
@@ -559,9 +599,9 @@ expected done shape (fields may include optional artifact URLs):
 }
 ```
 
-### model-info endpoint (feature importances)
+### model-info endpoint (feature importances + evaluation)
 
-this endpoint is used by the frontend to visualize model feature importances:
+this endpoint is used by the frontend to visualize model feature importances and held-out test metrics:
 
 ```bash
 curl -s http://127.0.0.1:8000/model-info
@@ -574,6 +614,11 @@ expected fields:
 - `class_distribution` (LOW/MEDIUM/HIGH counts)
 - `feature_importances` mapping feature_name -> importance_value
 - `sklearn_version`
+- `hyperparameters` (Random Forest settings)
+- `train_test_split` (`n_train`, `n_test`, `test_size`, `stratify`)
+- `evaluation` (`accuracy`, `precision_macro`, `recall_macro`, `f1_macro`, `per_class`, `confusion_matrix`)
+- `confusion_matrix_url` (e.g. `/media/confusion_matrix.png` when the PNG exists in `output/`)
+- `classification_report_url` (e.g. `/media/classification_report.txt` when present)
 
 if the metadata file is missing, the server returns empty defaults.
 
@@ -587,6 +632,8 @@ For example:
 
 - `http://127.0.0.1:8000/media/summary.png`
 - `http://127.0.0.1:8000/media/risk_timeline.png`
+- `http://127.0.0.1:8000/media/confusion_matrix.png` (after `train_model.py`)
+- `http://127.0.0.1:8000/media/classification_report.txt` (after `train_model.py`)
 - `http://127.0.0.1:8000/media/clips/clip_001.mp4`
 
 ## Optional frontend setup
@@ -595,7 +642,7 @@ the dashboard is optional. it uploads a video to the API, polls `/status`, then 
 
 - `Processed Output`: the processed video player
 - `Analysis Metrics`: risk badge, confidence bar, primary cause, explanation, and session metric tiles
-- `Model Info`: feature-importance bar chart (inline SVG) plus training timestamp/sample count
+- `Model Info`: feature-importance bar chart (inline SVG), training timestamp/sample count, and **model evaluation** metrics (accuracy, precision, recall, F1, confusion matrix) when `train_model.py` artifacts exist
 - `Session summary`: `summary.png` when present in the API response
 - `Risk timeline`: `risk_timeline.png` when present in the API response
 - `Flagged danger moments`: extracted HIGH-risk clips when present in the API response
@@ -701,9 +748,11 @@ expected behavior:
 - it generates 5000 synthetic samples by sampling feature ranges per class bucket (LOW / MEDIUM / HIGH)
 - it adds Gaussian noise per feature to avoid perfectly separable clusters
 - it clips normalized features back into `[0, 1]` (and clips `object_count` into `[0, +inf)`)
+- it splits data **80% train / 20% test** (stratified, `random_state=42`)
 - it trains a Random Forest with: `n_estimators=100`, `max_depth=8`, `class_weight='balanced'`, `random_state=42`
-- it prints a classification report and feature importances
-- it saves `roadguard_x/models/risk_model.pkl` and `roadguard_x/models/training_metadata.json`
+- it prints classification reports for **train** and **held-out test** sets, plus feature importances
+- it saves `roadguard_x/models/risk_model.pkl` and `roadguard_x/models/training_metadata.json` (includes accuracy, precision, recall, F1, confusion matrix, hyperparameters)
+- it writes evaluation artifacts to `roadguard_x/output/confusion_matrix.png` and `roadguard_x/output/classification_report.txt`
 
 what gets saved in `risk_model.pkl`:
 
@@ -714,11 +763,13 @@ what gets saved in `risk_model.pkl`:
 the script prints:
 
 - a “classification report (train set)” for LOW / MEDIUM / HIGH
+- a “classification report (held-out test set)” for LOW / MEDIUM / HIGH
+- test-set summary metrics: accuracy, precision (macro), recall (macro), F1 (macro)
 - “feature importances” ranked by the trained forest
 
-if the synthetic relationships are internally consistent, you should see strong precision/recall for the training set, because the label rules were encoded directly into how the synthetic feature vectors are sampled.
+if the synthetic relationships are internally consistent, you should see strong precision/recall for both train and test sets.
 
-the frontend uses `training_metadata.json` to visualize feature importances.
+the frontend uses `training_metadata.json` and `/model-info` to visualize feature importances and model evaluation metrics (when artifacts exist).
 
 ## Testing and validation
 
@@ -1150,6 +1201,73 @@ if clips folder is empty:
 
 - check that the run actually hit HIGH-risk moments (inspect `report.json.summary.risk_distribution`)
 - optionally increase the run length with `--max-frames` so you capture more behavior
+
+## Deployment
+
+RoadGuard-X has three runnable parts: **CLI** (`roadguard_x/`), **API** (`api/`), and **web UI** (`web/`). For campus demos, local/LAN is the most reliable option. For a public portfolio link, deploy the frontend and API separately.
+
+### What is committed vs generated
+
+| Path | In git? | Notes |
+|------|---------|--------|
+| `roadguard_x/models/risk_model.pkl` | Yes | Pre-trained model |
+| `roadguard_x/models/training_metadata.json` | Yes | Metrics for README + dashboard |
+| `roadguard_x/output/*` | No (gitignored) | Created per run; run `train_model.py` locally for `confusion_matrix.png` |
+| `roadguard_x/samples/street.mp4` | Generated | Run `python generate_sample.py` after clone |
+
+### Option A — Local / LAN demo (recommended for interviews)
+
+Use [Clone-friendly full stack run](#clone-friendly-full-stack-run). Bind API and Next.js to `0.0.0.0` so teammates can open `http://<your-LAN-IP>:3000`.
+
+### Option B — Deploy frontend (Vercel / Netlify)
+
+1. Push this repo to GitHub.
+2. Create a new project with **root directory** `web/`.
+3. Framework: **Next.js** (default build: `npm run build`).
+4. Set environment variable:
+
+```env
+NEXT_PUBLIC_API_URL=https://your-api-host.example.com
+```
+
+5. Deploy. The UI will call your hosted API for upload, status, report, and `/model-info`.
+
+Copy `web/.env.example` to `web/.env.local` for local development with a custom API URL.
+
+### Option C — Deploy API (Render, Railway, Fly.io, VPS)
+
+1. Use the **repository root** as the app root (not `roadguard_x/` alone).
+2. Install dependencies:
+
+```bash
+pip install -r roadguard_x/requirements.txt
+pip install -r api/requirements.txt
+```
+
+3. Install **FFmpeg** on the server (`ffmpeg` on `PATH`) so processed MP4s play in browsers.
+4. Start command (adjust port for your host):
+
+```bash
+python -m uvicorn api.server:app --host 0.0.0.0 --port 8000
+```
+
+5. Ensure the host allows long-running requests (video analysis can take several minutes).
+6. Add your frontend origin to CORS in `api/server.py` (`allow_origins` or `allow_origin_regex`) — e.g. `https://your-app.vercel.app`.
+
+Health check: `GET /health` → `ffmpeg_available: true` before relying on browser video playback.
+
+### Deployment checklist
+
+- [ ] `python roadguard_x/generate_sample.py` (or upload your own video)
+- [ ] `python train_model.py` on any machine that should show the confusion matrix image
+- [ ] FFmpeg installed where the **API** runs
+- [ ] `NEXT_PUBLIC_API_URL` points to the live API
+- [ ] CORS allows your frontend domain
+- [ ] Smoke test: upload sample video → dashboard shows metrics + model evaluation
+
+### Resume / portfolio one-liner
+
+> Offline driving-risk analyzer: OpenCV feature pipeline + Random Forest classifier, FastAPI backend, Next.js dashboard with explainability and held-out model evaluation (99.6% accuracy on synthetic test set).
 
 ## Known limitations
 

@@ -43,6 +43,8 @@ MODEL_LABEL = "Random Forest v2"
 FEATURE_COUNT = 9
 
 MODEL_META_PATH = RG_ROOT / "models" / "training_metadata.json"
+CONFUSION_MATRIX_IMAGE = OUTPUT_DIR / "confusion_matrix.png"
+CLASSIFICATION_REPORT_FILE = OUTPUT_DIR / "classification_report.txt"
 UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 
 app = FastAPI(title="RoadGuard-X API", version="1.0.0")
@@ -284,6 +286,9 @@ def model_info() -> JSONResponse:
         "class_distribution": {"LOW": 0, "MEDIUM": 0, "HIGH": 0},
         "feature_importances": {},
         "sklearn_version": None,
+        "hyperparameters": {},
+        "train_test_split": {},
+        "evaluation": {},
     }
     if not MODEL_META_PATH.is_file():
         return JSONResponse(content=fallback)
@@ -297,6 +302,20 @@ def model_info() -> JSONResponse:
     payload.update(data)
     if not isinstance(payload.get("feature_importances"), dict):
         payload["feature_importances"] = {}
+    if not isinstance(payload.get("hyperparameters"), dict):
+        payload["hyperparameters"] = {}
+    if not isinstance(payload.get("train_test_split"), dict):
+        payload["train_test_split"] = {}
+    if not isinstance(payload.get("evaluation"), dict):
+        payload["evaluation"] = {}
+    if CONFUSION_MATRIX_IMAGE.is_file():
+        payload["confusion_matrix_url"] = "/media/confusion_matrix.png"
+    else:
+        payload["confusion_matrix_url"] = None
+    if CLASSIFICATION_REPORT_FILE.is_file():
+        payload["classification_report_url"] = "/media/classification_report.txt"
+    else:
+        payload["classification_report_url"] = None
     return JSONResponse(content=payload)
 
 def _build_done_payload(report: dict) -> dict:

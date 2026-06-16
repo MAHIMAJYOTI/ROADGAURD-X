@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-25T08:52:52.508713+00:00",
+  "timestamp": "2026-06-16T10:36:10.385229+00:00",
   "n_samples": 5000,
   "class_distribution": {
     "LOW": 2500,
@@ -7,15 +7,72 @@
     "HIGH": 750
   },
   "feature_importances": {
-    "scene_complexity_index": 0.2958259597165887,
-    "motion_variance": 0.19635604814360386,
-    "lane_offset_norm": 0.18181601399901262,
-    "object_count": 0.13637850852133412,
-    "avg_speed": 0.10367284964032585,
-    "avg_object_area": 0.040959746951980736,
-    "direction_consistency": 0.036792898519903305,
-    "edge_density": 0.005852362885635847,
-    "brightness": 0.0023456116216150165
+    "scene_complexity_index": 0.29206959827748974,
+    "lane_offset_norm": 0.1946232476504013,
+    "motion_variance": 0.1892100869303183,
+    "object_count": 0.12880777146920738,
+    "avg_speed": 0.11387981336809662,
+    "avg_object_area": 0.04044514573150946,
+    "direction_consistency": 0.03354121374463199,
+    "edge_density": 0.0041756815809308855,
+    "brightness": 0.003247441247414458
   },
-  "sklearn_version": "1.8.0"
+  "sklearn_version": "1.8.0",
+  "hyperparameters": {
+    "n_estimators": 100,
+    "max_depth": 8,
+    "class_weight": "balanced",
+    "random_state": 42
+  },
+  "train_test_split": {
+    "test_size": 0.2,
+    "random_state": 42,
+    "stratify": true,
+    "n_train": 4000,
+    "n_test": 1000
+  },
+  "evaluation": {
+    "accuracy": 0.996,
+    "precision_macro": 0.9949,
+    "recall_macro": 0.9955,
+    "f1_macro": 0.9952,
+    "per_class": {
+      "LOW": {
+        "precision": 1.0,
+        "recall": 0.996,
+        "f1": 0.998
+      },
+      "MEDIUM": {
+        "precision": 0.9915,
+        "recall": 0.9971,
+        "f1": 0.9943
+      },
+      "HIGH": {
+        "precision": 0.9933,
+        "recall": 0.9933,
+        "f1": 0.9933
+      }
+    },
+    "confusion_matrix": [
+      [
+        498,
+        2,
+        0
+      ],
+      [
+        0,
+        349,
+        1
+      ],
+      [
+        0,
+        1,
+        149
+      ]
+    ]
+  },
+  "evaluation_artifacts": {
+    "confusion_matrix_png": "output/confusion_matrix.png",
+    "classification_report_txt": "output/classification_report.txt"
+  }
 }

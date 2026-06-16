@@ -46,6 +46,27 @@ type ModelInfoResponse = {
   class_distribution?: Record<string, number>;
   feature_importances?: Record<string, number>;
   sklearn_version?: string | null;
+  hyperparameters?: Record<string, number | string>;
+  train_test_split?: {
+    test_size?: number;
+    random_state?: number;
+    stratify?: boolean;
+    n_train?: number;
+    n_test?: number;
+  };
+  evaluation?: {
+    accuracy?: number;
+    precision_macro?: number;
+    recall_macro?: number;
+    f1_macro?: number;
+    per_class?: Record<
+      string,
+      { precision?: number; recall?: number; f1?: number }
+    >;
+    confusion_matrix?: number[][];
+  };
+  confusion_matrix_url?: string | null;
+  classification_report_url?: string | null;
 };
 
 function resolveMediaUrl(
@@ -287,9 +308,17 @@ function ConfidenceBar({ value }: { value: number }) {
 }
 
 function ExplanationPanel({
+  risk,
+  confidence,
+  primaryCause,
+  summary,
   reasons,
   contributions,
 }: {
+  risk?: string;
+  confidence?: number;
+  primaryCause?: string;
+  summary?: string;
   reasons: string[] | undefined;
   contributions: Record<string, number> | undefined;
 }) {
@@ -298,9 +327,48 @@ function ExplanationPanel({
         .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
         .slice(0, 8)
     : [];
+  const maxContrib = Math.max(
+    0.0001,
+    ...topFactors.map(([, v]) => Math.abs(Number(v) || 0)),
+  );
 
   return (
     <div className="space-y-6">
+      {summary ? (
+        <div className="rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-4 sm:p-5">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-cyan-500/90">
+            Explanation
+          </h3>
+          <p className="mt-3 text-sm leading-relaxed text-slate-100">{summary}</p>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Predicted risk
+          </h3>
+          <p className="mt-2 font-mono text-lg text-slate-100">{risk ?? "—"}</p>
+        </div>
+        <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Confidence
+          </h3>
+          <p className="mt-2 font-mono text-lg text-slate-100">
+            {confidence != null ? `${(confidence * 100).toFixed(1)}%` : "—"}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4 sm:p-5">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          Primary cause
+        </h3>
+        <p className="mt-3 text-sm font-medium text-slate-100">
+          {humanize(primaryCause || "") || "—"}
+        </p>
+      </div>
+
       <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4 sm:p-5">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           Why this risk?
@@ -323,15 +391,152 @@ function ExplanationPanel({
       {topFactors.length > 0 ? (
         <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4 sm:p-5">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Top Factors
+            Top feature contributions (Random Forest)
           </h3>
-          <ul className="mt-3 list-disc space-y-2 pl-5 font-mono text-sm text-slate-300 marker:text-slate-500">
-            {topFactors.map(([k]) => (
-              <li key={k} className="pl-0.5">
-                {k}
-              </li>
-            ))}
+          <ul className="mt-4 space-y-3">
+            {topFactors.map(([k, v]) => {
+              const value = Number(v) || 0;
+              const pct = (Math.abs(value) / maxContrib) * 100;
+              return (
+                <li key={k}>
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="font-mono text-slate-300">{humanize(k)}</span>
+                    <span className="font-mono text-slate-400">
+                      {(value * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-[width] duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ModelEvaluationPanel({
+  modelInfo,
+  apiBase,
+}: {
+  modelInfo: ModelInfoResponse | null;
+  apiBase: string;
+}) {
+  const evaluation = modelInfo?.evaluation;
+  const split = modelInfo?.train_test_split;
+  const hasMetrics =
+    evaluation &&
+    (evaluation.accuracy != null ||
+      evaluation.f1_macro != null ||
+      evaluation.precision_macro != null);
+  const confusionSrc = resolveMediaUrl(
+    apiBase,
+    modelInfo?.confusion_matrix_url ?? null,
+  );
+
+  if (!hasMetrics && !confusionSrc) {
+    return (
+      <p className="mt-6 text-xs leading-relaxed text-slate-500">
+        Run{" "}
+        <code className="text-slate-400">python train_model.py</code> from{" "}
+        <code className="text-slate-400">roadguard_x/</code> to generate held-out
+        test metrics and a confusion matrix.
+      </p>
+    );
+  }
+
+  const fmtPct = (v: number | undefined) =>
+    v != null ? `${(v * 100).toFixed(2)}%` : "—";
+  const fmtScore = (v: number | undefined) =>
+    v != null ? v.toFixed(4) : "—";
+
+  return (
+    <div className="mt-8 border-t border-slate-800 pt-6">
+      <h3 className="text-sm font-semibold text-slate-200">Model evaluation</h3>
+      <p className="mt-1 text-xs text-slate-500">
+        Held-out test set · {split?.n_train ?? "—"} train / {split?.n_test ?? "—"}{" "}
+        test
+        {split?.test_size != null
+          ? ` (${Math.round((1 - split.test_size) * 100)}/${Math.round(split.test_size * 100)} split)`
+          : ""}
+      </p>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <MetricCard label="Accuracy" value={fmtPct(evaluation?.accuracy)} />
+        <MetricCard label="F1 (macro)" value={fmtScore(evaluation?.f1_macro)} />
+        <MetricCard
+          label="Precision (macro)"
+          value={fmtScore(evaluation?.precision_macro)}
+        />
+        <MetricCard label="Recall (macro)" value={fmtScore(evaluation?.recall_macro)} />
+        <MetricCard
+          label="Training samples"
+          value={String(modelInfo?.n_samples ?? "—")}
+        />
+        <MetricCard
+          label="Test samples"
+          value={String(split?.n_test ?? "—")}
+        />
+      </div>
+
+      {evaluation?.per_class ? (
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/25">
+          <table className="w-full min-w-[280px] text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-500">
+                <th className="px-3 py-2 font-medium">Class</th>
+                <th className="px-3 py-2 font-medium">Precision</th>
+                <th className="px-3 py-2 font-medium">Recall</th>
+                <th className="px-3 py-2 font-medium">F1</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(evaluation.per_class).map(([label, scores]) => (
+                <tr key={label} className="border-b border-slate-800/60 text-slate-300">
+                  <td className="px-3 py-2 font-mono">{label}</td>
+                  <td className="px-3 py-2 font-mono">{fmtScore(scores.precision)}</td>
+                  <td className="px-3 py-2 font-mono">{fmtScore(scores.recall)}</td>
+                  <td className="px-3 py-2 font-mono">{fmtScore(scores.f1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {confusionSrc ? (
+        <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/25 p-4">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+            Confusion matrix (test set)
+          </p>
+          <img
+            src={confusionSrc}
+            alt="Confusion matrix"
+            className="mt-3 w-full rounded-lg border border-slate-800/70 bg-white"
+          />
+        </div>
+      ) : null}
+
+      {modelInfo?.hyperparameters &&
+      Object.keys(modelInfo.hyperparameters).length > 0 ? (
+        <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/25 p-4">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+            Random Forest hyperparameters
+          </p>
+          <dl className="mt-2 space-y-1 font-mono text-xs text-slate-400">
+            {Object.entries(modelInfo.hyperparameters).map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-4">
+                <dt>{k}</dt>
+                <dd className="text-slate-200">{String(v)}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       ) : null}
     </div>
@@ -537,11 +742,21 @@ export default function Home() {
           reasons?: string[];
           feature_contributions?: Record<string, number>;
         };
+        explanation?: {
+          risk?: string;
+          confidence?: number;
+          primary_cause?: string;
+          reasons?: string[];
+          feature_contributions?: Record<string, number>;
+          summary?: string;
+          top_features?: string[];
+        };
       }
     | undefined;
 
   const apiMeta = reportPayload?.meta;
-  const last = innerMeta?.last_frame;
+  const explanation = innerMeta?.explanation ?? innerMeta?.last_frame;
+  const last = innerMeta?.last_frame ?? innerMeta?.explanation;
   const dist = summary?.risk_distribution || {};
   const maxCount = Math.max(1, ...Object.values(dist));
   const videoSrc = resolveMediaUrl(apiBase, reportPayload?.video_url ?? null);
@@ -782,8 +997,20 @@ export default function Home() {
 
                   <div className="mt-8 border-t border-slate-800/90 pt-8">
                     <ExplanationPanel
-                      reasons={last?.reasons}
-                      contributions={last?.feature_contributions}
+                      risk={explanation?.risk ?? last?.risk}
+                      confidence={explanation?.confidence ?? last?.confidence}
+                      primaryCause={
+                        explanation?.primary_cause ?? last?.primary_cause
+                      }
+                      summary={
+                        innerMeta?.explanation?.summary ??
+                        undefined
+                      }
+                      reasons={explanation?.reasons ?? last?.reasons}
+                      contributions={
+                        explanation?.feature_contributions ??
+                        last?.feature_contributions
+                      }
                     />
                   </div>
 
@@ -1015,6 +1242,7 @@ export default function Home() {
                       </div>
                     </div>
                   ) : null}
+                  <ModelEvaluationPanel modelInfo={modelInfo} apiBase={apiBase} />
                 </Tilt>
               </section>
             </aside>
