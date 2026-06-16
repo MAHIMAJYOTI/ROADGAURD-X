@@ -49,15 +49,30 @@ UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 
 app = FastAPI(title="RoadGuard-X API", version="1.0.0")
 
+_extra_cors = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", "").split(",")
+    if o.strip()
+]
+_cors_origin_regex = os.environ.get(
+    "CORS_ORIGIN_REGEX",
+    (
+        r"https://.*\.(vercel\.app|onrender\.com)"
+        r"|http://(localhost|127\.0\.0\.1|[0-9]{1,3}(\.[0-9]{1,3}){3})(:[0-9]+)?"
+    ),
+)
+# Override in production if needed:
+#   CORS_ORIGINS=https://your-app.vercel.app
+#   CORS_ORIGIN_REGEX=https://.*\.vercel\.app
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        *_extra_cors,
     ],
-    # Allow the Next.js dev UI when opened via LAN IP (e.g. http://192.168.x.x:3000) so
-    # fetch() and media URLs resolve to the same machine as the API.
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|[0-9]{1,3}(\.[0-9]{1,3}){3})(:[0-9]+)?",
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

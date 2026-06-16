@@ -620,7 +620,9 @@ export default function Home() {
     } catch {
       stopPolling();
       setPhase("error");
-      setError("Lost connection to API");
+      setError(
+        `Lost connection to API at ${apiBase}. Render free tier may be waking up — wait 30s and retry.`,
+      );
     }
   }, [apiBase, fetchReport, stopPolling]);
 
@@ -692,7 +694,12 @@ export default function Home() {
         }
       } catch (e) {
         setPhase("error");
-        setError(e instanceof Error ? e.message : "Request failed");
+        const msg = e instanceof Error ? e.message : "Request failed";
+        setError(
+          msg === "Failed to fetch"
+            ? `Cannot reach API at ${apiBase}. If this is a deployed site, redeploy the API with CORS for your frontend (Vercel → Render). On Render free tier, wait ~30s and retry (cold start).`
+            : msg,
+        );
       }
     },
     [apiBase, pollStatus, startPolling],
