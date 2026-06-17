@@ -157,8 +157,8 @@ api/uploads/*
 web/node_modules/
 web/.next/
 
-# Bundled samples: only `sample.mp4` is tracked; other clips stay local
+# Bundled samples: only `demo.mp4` is tracked; other clips stay local
 roadguard_x/samples/*.mp4
-!roadguard_x/samples/sample.mp4
+!roadguard_x/samples/demo.mp4
 
 samples/*.mp4

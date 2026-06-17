@@ -175,7 +175,7 @@ ffmpeg -version
 ```text
 roadguard_x/
 ├── main.py                        # CLI entry point
-├── generate_sample.py             # generate `samples/street.mp4` after clone
+├── generate_sample.py             # optional: regenerate a synthetic clip locally
 ├── train_model.py                 # model training script (calibrated synthetic data)
 ├── models/
 │   ├── risk_model.pkl             # pre-trained Random Forest (committed)
@@ -196,7 +196,7 @@ roadguard_x/
 │   ├── timeline_chart.py         # risk_timeline.png generation
 │   └── heatmap.py               # scene complexity heatmap overlay
 ├── samples/
-│   └── street.mp4               # generated locally via `generate_sample.py`
+│   └── demo.mp4                 # bundled short demo clip (use for CLI + localhost UI)
 └── output/                       # created at runtime (or by train_model.py)
     ├── report.json
     ├── summary.png
@@ -215,7 +215,7 @@ web/
 
 ## Quick start (CLI)
 
-This section is written for a fresh clone and includes sample generation.
+This section is written for a fresh clone. A **bundled demo clip** is included — no video generation step required.
 
 ### step 1: clone the repo
 
@@ -234,7 +234,17 @@ pip install -r roadguard_x/requirements.txt
 
 Install FFmpeg using the [instructions above](#ffmpeg-recommended-for-web-playback) so `output.mp4` and `output/clips/*.mp4` re-encode to browser-friendly H.264. Skip this only if you use the CLI and open videos in a player that supports `mp4v`, not the web UI.
 
-### step 3: generate the sample video (required after clone)
+### step 3: confirm the bundled demo clip
+
+After clone, this file should already exist:
+
+```text
+roadguard_x/samples/demo.mp4
+```
+
+Use it for all quick-start runs and localhost dashboard uploads. Recommended: short MP4 (about 10–30 seconds, under ~20 MB).
+
+If `demo.mp4` is missing (e.g. shallow clone), you can optionally run:
 
 ```bash
 cd roadguard_x
@@ -242,16 +252,18 @@ python generate_sample.py
 cd ..
 ```
 
-expected output:
+That writes `samples/street.mp4` — pass it with `--input roadguard_x/samples/street.mp4` or copy/rename it to `demo.mp4`.
 
-```text
-roadguard_x/samples/street.mp4
-```
-
-### step 4: run the sample video
+### step 4: run the demo clip
 
 ```bash
-python roadguard_x/main.py --input roadguard_x/samples/street.mp4 --headless --save-video --save-clips
+python roadguard_x/main.py --source sample --headless --save-video --save-clips
+```
+
+Or with an explicit path:
+
+```bash
+python roadguard_x/main.py --input roadguard_x/samples/demo.mp4 --headless --save-video --save-clips
 ```
 
 ### expected output files
@@ -286,11 +298,10 @@ git clone https://github.com/username/roadguard-x.git
 cd roadguard-x
 pip install -r roadguard_x/requirements.txt
 pip install -r api/requirements.txt
-cd roadguard_x
-python generate_sample.py
-cd ..
 python -m uvicorn api.server:app --host 0.0.0.0 --port 8000
 ```
+
+Use the bundled clip `roadguard_x/samples/demo.mp4` when testing the dashboard (no `generate_sample.py` step).
 
 Binding the API to `0.0.0.0` still allows `http://127.0.0.1:8000` on the same machine and is required if another device on the network will use the UI.
 
@@ -316,7 +327,7 @@ If the dashboard works on your PC but a teammate sees **no video** (or API error
 ### open and test
 
 1. Open `http://localhost:3000`
-2. Upload `roadguard_x/samples/street.mp4`
+2. Upload `roadguard_x/samples/demo.mp4`
 3. Verify you see:
    - processed output video (if this is black or stuck at `0:00`, install FFmpeg and run the pipeline again)
    - risk timeline image
@@ -342,13 +353,7 @@ expected:
 
 note:
 
-- if `--source sample` cannot find a sample file, run:
-
-```bash
-cd roadguard_x
-python generate_sample.py
-cd ..
-```
+- `--source sample` uses the bundled clip `roadguard_x/samples/demo.mp4`. If it is missing, add the file or run `python generate_sample.py` and rename/copy the output to `demo.mp4`.
 
 ### 2) use webcam
 
@@ -545,20 +550,16 @@ pip install -r api/requirements.txt
 python -m uvicorn api.server:app --host 127.0.0.1 --port 8000
 ```
 
-### step 3: make sure the sample video exists
+### step 3: confirm the bundled demo clip
 
-```bash
-cd roadguard_x
-python generate_sample.py
-cd ..
-```
+The repo includes `roadguard_x/samples/demo.mp4`. No generation step is required.
 
 ### step 4: call the analysis endpoint
 
-start the server, then upload the generated sample:
+start the server, then upload the bundled demo clip:
 
 ```bash
-curl -s -X POST -F "file=@roadguard_x/samples/street.mp4" http://127.0.0.1:8000/analyze
+curl -s -X POST -F "file=@roadguard_x/samples/demo.mp4" http://127.0.0.1:8000/analyze
 ```
 
 expected response:
@@ -665,13 +666,7 @@ in another terminal:
 python -m uvicorn api.server:app --host 127.0.0.1 --port 8000
 ```
 
-and once per fresh clone:
-
-```bash
-cd roadguard_x
-python generate_sample.py
-cd ..
-```
+The bundled clip `roadguard_x/samples/demo.mp4` is included in the repo for uploads.
 
 ### step 3: open the dashboard
 
@@ -683,7 +678,7 @@ http://localhost:3000
 
 ### step 4: upload and run
 
-- upload `roadguard_x/samples/street.mp4`
+- upload `roadguard_x/samples/demo.mp4`
 - wait for `Analysis Complete`
 - verify processed output video, summary image, timeline image, and danger clips
 
@@ -1058,7 +1053,7 @@ python -m uvicorn api.server:app --host 127.0.0.1 --port 8000
 2. start analysis:
 
 ```bash
-curl -s -X POST -F "file=@roadguard_x/samples/street.mp4" http://127.0.0.1:8000/analyze
+curl -s -X POST -F "file=@roadguard_x/samples/demo.mp4" http://127.0.0.1:8000/analyze
 ```
 
 expected:
@@ -1149,7 +1144,7 @@ npx next dev -p 3000
 http://localhost:3000
 ```
 
-4. upload: use the “choose video” button or drag-and-drop, then select `roadguard_x/samples/street.mp4`.
+4. upload: use the “choose video” button or drag-and-drop, then select `roadguard_x/samples/demo.mp4`.
 
 5. verify UI states: “Uploading video...” appears immediately, then spinner + “Analyzing...” appears while processing, then “Analysis Complete” appears when the API reports `done`; on error (upload a non-video file or start a second analysis while one is running), a red alert box appears with the message.
 
@@ -1213,7 +1208,7 @@ RoadGuard-X has three runnable parts: **CLI** (`roadguard_x/`), **API** (`api/`)
 | `roadguard_x/models/risk_model.pkl` | Yes | Pre-trained model |
 | `roadguard_x/models/training_metadata.json` | Yes | Metrics for README + dashboard |
 | `roadguard_x/output/*` | No (gitignored) | Created per run; run `train_model.py` locally for `confusion_matrix.png` |
-| `roadguard_x/samples/street.mp4` | Generated | Run `python generate_sample.py` after clone |
+| `roadguard_x/samples/demo.mp4` | Yes | Bundled short demo clip for CLI + localhost UI |
 
 ### Option A — Local / LAN demo (recommended for interviews)
 
@@ -1258,7 +1253,7 @@ Health check: `GET /health` → `ffmpeg_available: true` before relying on brows
 
 ### Deployment checklist
 
-- [ ] `python roadguard_x/generate_sample.py` (or upload your own video)
+- [ ] `roadguard_x/samples/demo.mp4` present (bundled in repo)
 - [ ] `python train_model.py` on any machine that should show the confusion matrix image
 - [ ] FFmpeg installed where the **API** runs
 - [ ] `NEXT_PUBLIC_API_URL` points to the live API

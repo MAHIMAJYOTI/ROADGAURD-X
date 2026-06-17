@@ -49,8 +49,13 @@ DATASET_CSV = _ROOT / "data" / "dataset.csv"
 OUTPUT_VIDEO = _ROOT / "output" / "output.mp4"
 
 
+BUNDLED_DEMO_VIDEO = _ROOT / "samples" / "demo.mp4"
+
+
 def pick_sample_video() -> Path:
-    """Randomly pick a bundled driving clip; fallback to sample.mp4."""
+    """Use the bundled demo clip; optional extra local samples for variety."""
+    if BUNDLED_DEMO_VIDEO.is_file():
+        return BUNDLED_DEMO_VIDEO
     candidates = [
         _ROOT / "samples" / "road_real_1.mp4",
         _ROOT / "samples" / "road_real_2.mp4",
@@ -59,7 +64,7 @@ def pick_sample_video() -> Path:
     ]
     existing = [p for p in candidates if p.exists()]
     if not existing:
-        return _ROOT / "samples" / "sample.mp4"
+        return BUNDLED_DEMO_VIDEO
     return random.choice(existing)
 
 
@@ -149,14 +154,15 @@ def main() -> None:
         sample_path = pick_sample_video()
         if not sample_path.is_file():
             print(
-                "Sample video not found. Please run first:\n"
-                "    python generate_sample.py"
+                "Demo video not found. Expected bundled clip at:\n"
+                f"    {BUNDLED_DEMO_VIDEO}\n"
+                "Optional fallback: python generate_sample.py"
             )
             sys.exit(1)
         cap, source_fps = open_capture("sample", sample_path)
         file_mode = True
     else:
-        sample_path = _ROOT / "samples" / "sample.mp4"
+        sample_path = BUNDLED_DEMO_VIDEO
         cap, source_fps = open_capture("webcam", sample_path)
         file_mode = False
 
