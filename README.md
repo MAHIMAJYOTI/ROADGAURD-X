@@ -13,9 +13,52 @@ RoadGuard-X is an offline, explainable driving-scene risk analysis system. It co
 - **Web dashboard:** Next.js UI with processed video, metrics, timeline, and model evaluation panel
 - **Offline-first:** no GPU, no cloud inference, reproducible after clone
 
-## table of contents
+## Screenshots
+
+Captured locally with the bundled `demo.mp4` (`roadguard_x/samples/demo.mp4`). **Web:** API `:8000` + UI `:3000` · **CLI:** `python roadguard_x/main.py --source sample`
+
+### Dashboard
+
+| Hero & model metrics | Upload |
+|:---:|:---:|
+| ![RoadGuard-X — hero and metrics](docs/screenshots/dashboard-hero.png) | ![Upload zone — analyse a driving clip](docs/screenshots/dashboard-upload-zone.png) |
+
+### Analysis results
+
+| Processed output | Analysis metrics |
+|:---:|:---:|
+| ![Annotated processed video](docs/screenshots/dashboard-processed-output.png) | ![Risk badge and session overview](docs/screenshots/dashboard-analysis-metrics.png) |
+
+| Explainability |
+|:---:|
+| ![Session explanation and feature contributions](docs/screenshots/dashboard-explanation.png) |
+
+| Session summary & timeline | Danger clips & distribution |
+|:---:|:---:|
+| ![Summary frames and risk timeline](docs/screenshots/dashboard-session-insights.png) | ![Flagged clips and risk distribution](docs/screenshots/dashboard-risk-distribution.png) |
+
+### Model evaluation
+
+| Feature importances | Test metrics |
+|:---:|:---:|
+| ![Model info and feature chart](docs/screenshots/dashboard-model-info.png) | ![Accuracy, F1, per-class scores](docs/screenshots/dashboard-model-eval.png) |
+
+| Confusion matrix |
+|:---:|
+| ![Confusion matrix and hyperparameters](docs/screenshots/dashboard-confusion-matrix.png) |
+
+### CLI live HUD
+
+| Terminal overlay |
+|:---:|
+| ![CLI live HUD on sample video](docs/screenshots/cli-hud.png) |
+
+*Dashboard training metrics = held-out synthetic test set (not per-upload accuracy).*
+
+## Table of contents
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [What it does](#what-it-does)
 - [Results](#results)
 - [Architecture overview](#architecture-overview)
@@ -215,56 +258,36 @@ web/
 
 ## Quick start (CLI)
 
-This section is written for a fresh clone. A **bundled demo clip** is included — no video generation step required.
-
-### step 1: clone the repo
+Three commands after clone — uses the **bundled demo clip** (`roadguard_x/samples/demo.mp4`). No video generation step.
 
 ```bash
 git clone https://github.com/username/roadguard-x.git
 cd roadguard-x
-```
-
-### step 2: install dependencies
-
-```bash
 pip install -r roadguard_x/requirements.txt
+python roadguard_x/main.py --source sample
 ```
 
-### step 2b: install FFmpeg (recommended)
-
-Install FFmpeg using the [instructions above](#ffmpeg-recommended-for-web-playback) so `output.mp4` and `output/clips/*.mp4` re-encode to browser-friendly H.264. Skip this only if you use the CLI and open videos in a player that supports `mp4v`, not the web UI.
-
-### step 3: confirm the bundled demo clip
-
-After clone, this file should already exist:
-
-```text
-roadguard_x/samples/demo.mp4
-```
-
-Use it for all quick-start runs and localhost dashboard uploads. Recommended: short MP4 (about 10–30 seconds, under ~20 MB).
-
-If `demo.mp4` is missing (e.g. shallow clone), you can optionally run:
+That runs the full pipeline on `samples/demo.mp4` and opens the live HUD. For a fast headless run (no window, writes `output/report.json`):
 
 ```bash
-cd roadguard_x
-python generate_sample.py
-cd ..
+python roadguard_x/main.py --source sample --headless
 ```
 
-That writes `samples/street.mp4` — pass it with `--input roadguard_x/samples/street.mp4` or copy/rename it to `demo.mp4`.
-
-### step 4: run the demo clip
+Full artifact run (report + summary + timeline + annotated video + danger clips):
 
 ```bash
 python roadguard_x/main.py --source sample --headless --save-video --save-clips
 ```
 
-Or with an explicit path:
+### Prerequisites
 
-```bash
-python roadguard_x/main.py --input roadguard_x/samples/demo.mp4 --headless --save-video --save-clips
-```
+| Step | Command / note |
+|------|----------------|
+| **FFmpeg** (web UI video playback) | [Install FFmpeg](#ffmpeg-recommended-for-web-playback) — optional for CLI-only |
+| **Demo clip** | Included at `roadguard_x/samples/demo.mp4` (~17 MB) |
+| **Explicit file path** | `python roadguard_x/main.py --input roadguard_x/samples/demo.mp4 --headless` |
+
+If `demo.mp4` is missing, optionally run `python roadguard_x/generate_sample.py` and rename the output to `demo.mp4`.
 
 ### expected output files
 
@@ -280,18 +303,18 @@ roadguard_x/output/
 - `output.mp4`
 - `clips/clip_001.mp4` etc (if HIGH-risk segments were found)
 
-## Clone-friendly full stack run
+## Clone-friendly full stack run (localhost dashboard)
 
-If you want to run API + frontend immediately after cloning, use this exact sequence.
+Run the **web dashboard** locally and upload the bundled `demo.mp4`. Recommended for demos and README screenshots.
 
-**Before the web UI will show processed output and flagged clips reliably on every computer, install FFmpeg** (see [FFmpeg (recommended for web playback)](#ffmpeg-recommended-for-web-playback)). On Windows:
+**Before the web UI will show processed output reliably, install FFmpeg** (see [FFmpeg](#ffmpeg-recommended-for-web-playback)). On Windows:
 
 ```powershell
 winget install Gyan.FFmpeg
 ffmpeg -version
 ```
 
-### terminal 1 (API)
+### Terminal 1 — API
 
 ```bash
 git clone https://github.com/username/roadguard-x.git
@@ -301,19 +324,25 @@ pip install -r api/requirements.txt
 python -m uvicorn api.server:app --host 0.0.0.0 --port 8000
 ```
 
-Use the bundled clip `roadguard_x/samples/demo.mp4` when testing the dashboard (no `generate_sample.py` step).
-
-Binding the API to `0.0.0.0` still allows `http://127.0.0.1:8000` on the same machine and is required if another device on the network will use the UI.
-
-### terminal 2 (frontend)
+### Terminal 2 — frontend
 
 ```bash
 cd web
 npm install
-npx next dev -p 3000 -H 0.0.0.0
+npx next dev -p 3000
 ```
 
-`-H 0.0.0.0` lets you open the dashboard from another computer using `http://<this-machine-LAN-IP>:3000`.
+### Try it
+
+1. Open **http://localhost:3000**
+2. Upload **`roadguard_x/samples/demo.mp4`**
+3. Wait for **Analysis Complete** — processed video, risk metrics, model evaluation
+
+Or analyze from the CLI in a third terminal:
+
+```bash
+python roadguard_x/main.py --source sample --headless --save-video
+```
 
 ### another computer on the same network (videos not playing)
 
@@ -324,27 +353,17 @@ If the dashboard works on your PC but a teammate sees **no video** (or API error
 3. **FFmpeg missing** — Re-run analysis after installing FFmpeg so MP4s are re-encoded for the browser (see [FFmpeg (recommended for web playback)](#ffmpeg-recommended-for-web-playback)).
 4. **Custom API port** — Set `NEXT_PUBLIC_API_URL` in `web/.env.local`, for example `NEXT_PUBLIC_API_URL=http://192.168.1.42:9000`.
 
-### open and test
-
-1. Open `http://localhost:3000`
-2. Upload `roadguard_x/samples/demo.mp4`
-3. Verify you see:
-   - processed output video (if this is black or stuck at `0:00`, install FFmpeg and run the pipeline again)
-   - risk timeline image
-   - summary image
-   - danger clips (if detected; same FFmpeg note applies)
-
-If videos play on your PC but not on a teammate’s machine, see **another computer on the same network** above (host/IP and FFmpeg).
-
 ## CLI usage examples
 
 Use these commands from the repo root with your python environment active.
 
-### 1) use bundled sample video (default)
+### 1) bundled demo clip (recommended)
 
 ```bash
 python roadguard_x/main.py --source sample
 ```
+
+Uses `roadguard_x/samples/demo.mp4` (included in the repo). Opens the live HUD with lane overlay and risk banner.
 
 expected:
 

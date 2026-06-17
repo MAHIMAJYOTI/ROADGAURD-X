@@ -7,6 +7,18 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  FeatureImportanceChart,
+  HeroIllustration,
+  HeroMetricCard,
+  IconBrain,
+  IconChart,
+  IconFilm,
+  IconLayers,
+  IconTarget,
+  SampleOutputGallery,
+  UploadWaves,
+} from "@/components/dashboard-ui";
 
 const POLL_MS = 2000;
 
@@ -79,17 +91,30 @@ function resolveMediaUrl(
 }
 
 function riskBarClass(label: string): string {
-  if (label === "HIGH") return "bg-red-500";
-  if (label === "MEDIUM") return "bg-amber-400";
-  return "bg-emerald-500";
+  if (label === "HIGH") return "bg-[#b91c1c]";
+  if (label === "MEDIUM") return "bg-[#c2410c]";
+  return "bg-accent-blue";
 }
 
 function humanize(s: string): string {
   return s.replace(/_/g, " ").trim();
 }
 
-function clamp(n: number, a: number, b: number): number {
-  return Math.max(a, Math.min(b, n));
+function SubSection({
+  title,
+  children,
+  className = "",
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`mt-8 border-t border-[var(--rg-border)] pt-8 ${className}`}>
+      <h3 className="rg-stat-label">{title}</h3>
+      {children}
+    </div>
+  );
 }
 
 type Phase = "idle" | "uploading" | "processing" | "done" | "error";
@@ -112,178 +137,43 @@ function statusLayer(
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-      {children}
-    </h2>
-  );
+  return <h2 className="rg-section-title mb-4">{children}</h2>;
 }
 
-function BackgroundFX() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const prefersReduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-    if (prefersReduced) return;
-
-    let w = 0;
-    let h = 0;
-    let dpr = 1;
-
-    const resize = () => {
-      dpr = window.devicePixelRatio || 1;
-      w = window.innerWidth;
-      h = window.innerHeight;
-      canvas.width = Math.floor(w * dpr);
-      canvas.height = Math.floor(h * dpr);
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    resize();
-    window.addEventListener("resize", resize);
-
-    const mouse = { x: w / 2, y: h / 2, tx: w / 2, ty: h / 2 };
-    const onMove = (e: MouseEvent) => {
-      mouse.tx = e.clientX;
-      mouse.ty = e.clientY;
-    };
-    window.addEventListener("mousemove", onMove, { passive: true });
-
-    const starCount = 90;
-    const stars = Array.from({ length: starCount }, () => ({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      z: Math.random(), // 0..1 depth
-      r: 0.3 + Math.random() * 1.4,
-      v: 0.12 + Math.random() * 0.5,
-    }));
-
-    let raf = 0;
-    let last = performance.now();
-
-    const tick = (now: number) => {
-      const dt = Math.min(32, now - last);
-      last = now;
-
-      mouse.x += (mouse.tx - mouse.x) * 0.06;
-      mouse.y += (mouse.ty - mouse.y) * 0.06;
-
-      ctx.clearRect(0, 0, w, h);
-      ctx.globalCompositeOperation = "lighter";
-
-      const ox = (mouse.x - w / 2) / w;
-      const oy = (mouse.y - h / 2) / h;
-
-      for (const s of stars) {
-        // parallax drift
-        s.x += ox * (0.9 - s.z) * dt * 0.02;
-        s.y += (s.v * (0.2 + (1.0 - s.z))) * dt * 0.12;
-
-        if (s.y > h + 10) {
-          s.y = -10;
-          s.x = Math.random() * w;
-        }
-        if (s.x < -10) s.x = w + 10;
-        if (s.x > w + 10) s.x = -10;
-
-        const a = 0.08 + (1.0 - s.z) * 0.28;
-        ctx.fillStyle = `rgba(56, 189, 248, ${a})`;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      raf = window.requestAnimationFrame(tick);
-    };
-
-    raf = window.requestAnimationFrame(tick);
-
-    return () => {
-      window.cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("mousemove", onMove);
-    };
-  }, []);
-
+function UploadIcon() {
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden
-      className="pointer-events-none fixed inset-0 -z-10 opacity-30"
-    />
-  );
-}
-
-function Tilt({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const el = ref.current;
-    if (!el) return;
-
-    const reduced =
-      window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) return;
-
-    const rect = el.getBoundingClientRect();
-    const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-    const y = clamp((e.clientY - rect.top) / rect.height, 0, 1);
-
-    const ry = (x - 0.5) * 12; // left/right
-    const rx = (0.5 - y) * 10; // up/down
-
-    el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(0)`;
-  }, []);
-
-  const onLeave = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.transform = `perspective(900px) rotateX(0deg) rotateY(0deg) translateZ(0)`;
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-      className={`rg-tilt relative ${className ?? ""}`}
-    >
-      {children}
+    <div className="rg-upload-icon-wrap mx-auto flex h-20 w-20 items-center justify-center rounded-2xl">
+      <svg
+        className="h-9 w-9 text-accent-purple"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        aria-hidden
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+        />
+      </svg>
     </div>
   );
 }
 
 function RiskBadge({ level }: { level: string }) {
-  const isHigh = level === "HIGH";
-  const isMed = level === "MEDIUM";
-  const cls = isHigh
-    ? "bg-red-600 text-white ring-2 ring-red-400/50 shadow-red-900/30"
-    : isMed
-      ? "bg-amber-400 text-amber-950 ring-2 ring-amber-300/60 shadow-amber-900/20"
-      : "bg-emerald-600 text-white ring-2 ring-emerald-400/45 shadow-emerald-900/25";
+  const cls =
+    level === "HIGH"
+      ? "rg-risk-high"
+      : level === "MEDIUM"
+        ? "rg-risk-medium"
+        : "rg-risk-low";
 
   return (
     <div
-      className={`relative flex w-full overflow-hidden items-center justify-center rounded-xl px-4 py-4 text-center text-3xl font-bold uppercase tracking-wide shadow-lg transition-all duration-300 sm:py-5 sm:text-4xl ${cls}`}
+      className={`flex w-full items-center justify-center rounded-lg px-4 py-5 text-center font-display text-3xl uppercase tracking-[0.05em] sm:text-4xl ${cls}`}
       aria-label={`Risk level ${level}`}
     >
-      <div className="rg-holo-ring" aria-hidden />
-      <div className="rg-holo-scan" aria-hidden />
       {level}
     </div>
   );
@@ -293,18 +183,25 @@ function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.min(100, Math.max(0, value * 100));
   return (
     <div>
-      <div className="mb-2 flex justify-between text-xs text-slate-500">
-        <span>Confidence</span>
-        <span className="font-mono text-slate-300">{pct.toFixed(0)}%</span>
+      <div className="mb-2 flex justify-between text-xs text-zinc-500">
+        <span>Inference confidence</span>
+        <span className="font-mono text-zinc-100">{pct.toFixed(0)}%</span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full bg-slate-800/90 ring-1 ring-slate-700/80">
-        <div
-          className="h-full max-w-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-[width] duration-700 ease-out motion-reduce:transition-none"
-          style={{ width: `${pct}%` }}
-        />
+      <div className="rg-bar-track">
+        <div className="rg-bar-fill" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
+}
+
+function Panel({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={`rg-card ${className}`}>{children}</div>;
 }
 
 function ExplanationPanel({
@@ -333,66 +230,55 @@ function ExplanationPanel({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {summary ? (
-        <div className="rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-4 sm:p-5">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-cyan-500/90">
-            Explanation
-          </h3>
-          <p className="mt-3 text-sm leading-relaxed text-slate-100">{summary}</p>
+        <div className="rg-card-inset p-4 sm:p-5">
+          <h3 className="rg-eyebrow">Session explanation</h3>
+          <p className="mt-3 text-sm leading-relaxed text-zinc-300">{summary}</p>
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Predicted risk
-          </h3>
-          <p className="mt-2 font-mono text-lg text-slate-100">{risk ?? "—"}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rg-card-inset p-4">
+          <h3 className="rg-stat-label">Predicted risk</h3>
+          <p className="rg-stat-value mt-2">{risk ?? "—"}</p>
         </div>
-        <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Confidence
-          </h3>
-          <p className="mt-2 font-mono text-lg text-slate-100">
+        <div className="rg-card-inset p-4">
+          <h3 className="rg-stat-label">Confidence</h3>
+          <p className="rg-stat-value mt-2">
             {confidence != null ? `${(confidence * 100).toFixed(1)}%` : "—"}
           </p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4 sm:p-5">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Primary cause
-        </h3>
-        <p className="mt-3 text-sm font-medium text-slate-100">
+      <div className="rg-card-inset p-4 sm:p-5">
+        <h3 className="rg-stat-label">Primary cause</h3>
+        <p className="mt-2 text-sm font-medium text-zinc-200">
           {humanize(primaryCause || "") || "—"}
         </p>
       </div>
 
-      <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4 sm:p-5">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Why this risk?
-        </h3>
+      <div className="rg-card-inset p-4 sm:p-5">
+        <h3 className="rg-stat-label">Why this risk?</h3>
         {reasons && reasons.length > 0 ? (
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-200 marker:text-slate-500">
+          <ul className="mt-3 space-y-2 text-sm leading-relaxed text-zinc-300">
             {reasons.slice(0, 12).map((r) => (
-              <li key={r} className="pl-0.5">
-                {humanize(r)}
+              <li key={r} className="flex gap-2">
+                <span className="text-accent-purple">—</span>
+                <span>{humanize(r)}</span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-slate-500">
-            No rule-based triggers; model confidence is primary.
+          <p className="mt-3 text-sm text-zinc-500">
+            No rule-based triggers; model confidence drives the label.
           </p>
         )}
       </div>
 
       {topFactors.length > 0 ? (
-        <div className="rounded-xl border border-slate-800/90 bg-slate-950/25 p-4 sm:p-5">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Top feature contributions (Random Forest)
-          </h3>
+        <div className="rg-card-inset p-4 sm:p-5">
+          <h3 className="rg-stat-label">Feature contributions</h3>
           <ul className="mt-4 space-y-3">
             {topFactors.map(([k, v]) => {
               const value = Number(v) || 0;
@@ -400,14 +286,14 @@ function ExplanationPanel({
               return (
                 <li key={k}>
                   <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="font-mono text-slate-300">{humanize(k)}</span>
-                    <span className="font-mono text-slate-400">
+                    <span className="font-mono text-zinc-300">{humanize(k)}</span>
+                    <span className="font-mono text-zinc-500">
                       {(value * 100).toFixed(1)}%
                     </span>
                   </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-800">
+                  <div className="rg-bar-track mt-1.5 h-1.5">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-[width] duration-500"
+                      className="h-full rounded-full bg-gradient-to-r from-accent-purple to-accent-blue"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -442,10 +328,10 @@ function ModelEvaluationPanel({
 
   if (!hasMetrics && !confusionSrc) {
     return (
-      <p className="mt-6 text-xs leading-relaxed text-slate-500">
+      <p className="mt-6 text-xs leading-relaxed text-zinc-500">
         Run{" "}
-        <code className="text-slate-400">python train_model.py</code> from{" "}
-        <code className="text-slate-400">roadguard_x/</code> to generate held-out
+        <code className="font-mono text-accent-purple/90">python train_model.py</code> from{" "}
+        <code className="font-mono text-accent-purple/90">roadguard_x/</code> to generate held-out
         test metrics and a confusion matrix.
       </p>
     );
@@ -457,49 +343,47 @@ function ModelEvaluationPanel({
     v != null ? v.toFixed(4) : "—";
 
   return (
-    <div className="mt-8 border-t border-slate-800 pt-6">
-      <h3 className="text-sm font-semibold text-slate-200">Model evaluation</h3>
-      <p className="mt-1 text-xs text-slate-500">
-        Held-out test set · {split?.n_train ?? "—"} train / {split?.n_test ?? "—"}{" "}
-        test
+    <div className="mt-6">
+      <div className="flex items-center gap-2">
+        <div className="rg-icon-blue flex h-8 w-8 items-center justify-center rounded-lg">
+          <IconChart />
+        </div>
+        <h3 className="font-display text-base font-semibold text-zinc-100">Model evaluation</h3>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+        Held-out synthetic test set — not per-upload accuracy.
+      </p>
+      <p className="mt-1 text-xs text-zinc-600">
+        {split?.n_train ?? "—"} train / {split?.n_test ?? "—"} test
         {split?.test_size != null
-          ? ` (${Math.round((1 - split.test_size) * 100)}/${Math.round(split.test_size * 100)} split)`
+          ? ` · ${Math.round((1 - split.test_size) * 100)}/${Math.round(split.test_size * 100)} split`
           : ""}
       </p>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <MetricCard label="Accuracy" value={fmtPct(evaluation?.accuracy)} />
-        <MetricCard label="F1 (macro)" value={fmtScore(evaluation?.f1_macro)} />
-        <MetricCard
-          label="Precision (macro)"
-          value={fmtScore(evaluation?.precision_macro)}
-        />
-        <MetricCard label="Recall (macro)" value={fmtScore(evaluation?.recall_macro)} />
-        <MetricCard
-          label="Training samples"
-          value={String(modelInfo?.n_samples ?? "—")}
-        />
-        <MetricCard
-          label="Test samples"
-          value={String(split?.n_test ?? "—")}
-        />
+      <div className="mt-4 grid grid-cols-2 gap-2.5">
+        <MetricCard label="Test accuracy" value={fmtPct(evaluation?.accuracy)} accent="purple" />
+        <MetricCard label="F1 (macro)" value={fmtScore(evaluation?.f1_macro)} accent="blue" />
+        <MetricCard label="Precision" value={fmtScore(evaluation?.precision_macro)} accent="blue" />
+        <MetricCard label="Recall" value={fmtScore(evaluation?.recall_macro)} accent="purple" />
+        <MetricCard label="Train samples" value={String(modelInfo?.n_samples ?? "—")} />
+        <MetricCard label="Test samples" value={String(split?.n_test ?? "—")} />
       </div>
 
       {evaluation?.per_class ? (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/25">
-          <table className="w-full min-w-[280px] text-left text-xs">
+        <div className="rg-glass-inset mt-4 overflow-x-auto rounded-xl">
+          <table className="w-full min-w-[260px] text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-500">
-                <th className="px-3 py-2 font-medium">Class</th>
-                <th className="px-3 py-2 font-medium">Precision</th>
-                <th className="px-3 py-2 font-medium">Recall</th>
-                <th className="px-3 py-2 font-medium">F1</th>
+              <tr className="border-b border-white/[0.06] text-zinc-500">
+                <th className="px-3 py-2.5 font-medium">Class</th>
+                <th className="px-3 py-2.5 font-medium">Prec</th>
+                <th className="px-3 py-2.5 font-medium">Rec</th>
+                <th className="px-3 py-2.5 font-medium">F1</th>
               </tr>
             </thead>
             <tbody>
               {Object.entries(evaluation.per_class).map(([label, scores]) => (
-                <tr key={label} className="border-b border-slate-800/60 text-slate-300">
-                  <td className="px-3 py-2 font-mono">{label}</td>
+                <tr key={label} className="border-b border-white/[0.04] text-zinc-300">
+                  <td className="px-3 py-2 font-mono text-accent-purple">{label}</td>
                   <td className="px-3 py-2 font-mono">{fmtScore(scores.precision)}</td>
                   <td className="px-3 py-2 font-mono">{fmtScore(scores.recall)}</td>
                   <td className="px-3 py-2 font-mono">{fmtScore(scores.f1)}</td>
@@ -511,29 +395,25 @@ function ModelEvaluationPanel({
       ) : null}
 
       {confusionSrc ? (
-        <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/25 p-4">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-            Confusion matrix (test set)
-          </p>
+        <div className="rg-matrix-frame mt-4">
+          <p className="rg-stat-label relative z-10">Confusion matrix</p>
           <img
             src={confusionSrc}
             alt="Confusion matrix"
-            className="mt-3 w-full rounded-lg border border-slate-800/70 bg-white"
+            className="relative z-10 mt-3 w-full rounded-lg border border-white/[0.08] bg-white shadow-lg"
           />
         </div>
       ) : null}
 
       {modelInfo?.hyperparameters &&
       Object.keys(modelInfo.hyperparameters).length > 0 ? (
-        <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/25 p-4">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-            Random Forest hyperparameters
-          </p>
-          <dl className="mt-2 space-y-1 font-mono text-xs text-slate-400">
+        <div className="rg-glass-inset mt-4 rounded-xl p-4">
+          <p className="rg-stat-label">Hyperparameters</p>
+          <dl className="mt-2 space-y-1.5 font-mono text-xs">
             {Object.entries(modelInfo.hyperparameters).map(([k, v]) => (
-              <div key={k} className="flex justify-between gap-4">
+              <div key={k} className="flex justify-between gap-4 text-zinc-500">
                 <dt>{k}</dt>
-                <dd className="text-slate-200">{String(v)}</dd>
+                <dd className="text-zinc-200">{String(v)}</dd>
               </div>
             ))}
           </dl>
@@ -550,6 +430,7 @@ export default function Home() {
   const [reportPayload, setReportPayload] = useState<ReportDone | null>(null);
   const [drag, setDrag] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
   const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
   const [modelInfo, setModelInfo] = useState<ModelInfoResponse | null>(null);
@@ -566,6 +447,19 @@ export default function Home() {
     if (hostname !== "localhost" && hostname !== "127.0.0.1") {
       setApiBase(`${protocol}//${hostname}:8000`);
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const setFilePreview = useCallback((file: File) => {
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
   }, []);
 
   const stopPolling = useCallback(() => {
@@ -710,10 +604,11 @@ export default function Home() {
       const f = e.target.files?.[0];
       if (f) {
         setSelectedFileName(f.name);
+        setFilePreview(f);
         void onAnalyze(f);
       }
     },
-    [onAnalyze],
+    [onAnalyze, setFilePreview],
   );
 
   const onDrop = useCallback(
@@ -724,10 +619,11 @@ export default function Home() {
       const f = e.dataTransfer.files?.[0];
       if (f) {
         setSelectedFileName(f.name);
+        setFilePreview(f);
         void onAnalyze(f);
       }
     },
-    [onAnalyze, phase],
+    [onAnalyze, phase, setFilePreview],
   );
 
   const summary = reportPayload?.report?.summary as
@@ -796,487 +692,480 @@ export default function Home() {
 
   return (
     <>
-      <div className="rg-bg" aria-hidden />
-      <BackgroundFX />
-      <main className="relative z-10 mx-auto min-h-screen max-w-6xl px-4 py-6 sm:px-5 sm:py-8 lg:px-6">
-      <header className="mb-8 border-b border-slate-800/80 pb-6 transition-opacity duration-300">
-        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-          RoadGuard-X
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          Upload a driving clip. Analysis runs offline on your machine (same
-          pipeline as the CLI). Results appear when processing finishes.
-        </p>
-      </header>
-
-      {/* Upload */}
-      <section className="transition-all duration-300">
-        <div
-          className={`rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 sm:p-12 ${
-            drag
-              ? "border-blue-500/80 bg-slate-800/60 shadow-lg shadow-blue-900/20"
-              : "border-slate-700 bg-slate-900/40 hover:border-slate-600"
-          } ${busy ? "opacity-60" : ""}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            if (!busy) setDrag(true);
-          }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={onDrop}
-        >
-          <p className="text-slate-200">
-            Drop a video here, or use the button below
-          </p>
-          <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <input
-              ref={fileInputRef}
-              id="fileInput"
-              type="file"
-              accept="video/mp4"
-              className="sr-only"
-              disabled={busy}
-              aria-label="Choose a video file to analyze"
-              onChange={handleFile}
-            />
-            <label
-              htmlFor="fileInput"
-              className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors ${
-                busy
-                  ? "cursor-not-allowed bg-slate-600"
-                  : "cursor-pointer bg-blue-600 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
-              }`}
-            >
-              Choose Video
-            </label>
-          </div>
-          {selectedFileName ? (
-            <p
-              className="mt-4 truncate text-sm text-slate-300"
-              title={selectedFileName}
-            >
-              Selected: <span className="font-mono text-slate-200">{selectedFileName}</span>
-            </p>
-          ) : null}
-          <p className="mt-3 text-xs text-slate-500">
-            MP4 · local processing · no cloud
-          </p>
-        </div>
-      </section>
-
-      {/* Status strip: stacked layers — only one visible; opacity crossfade */}
-      <div
-        className={`relative mt-8 ${phase !== "idle" ? "min-h-[5.5rem]" : ""}`}
-        aria-live="polite"
-        aria-busy={phase === "uploading" || phase === "processing"}
-      >
-        {phase !== "idle" ? (
-          <div className="relative isolate min-h-[5.5rem]">
-            <div
-              aria-hidden={phase !== "uploading"}
-              className={statusLayer(
-                phase,
-                "uploading",
-                "rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-slate-300",
-              )}
-            >
-              Uploading video...
-            </div>
-            <div
-              aria-hidden={phase !== "processing"}
-              className={statusLayer(
-                phase,
-                "processing",
-                "rounded-xl border border-blue-900/40 bg-blue-950/20 px-4 py-4",
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className="h-8 w-8 shrink-0 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500"
-                  aria-hidden
-                />
-                <p className="font-medium text-slate-200">Analyzing...</p>
-              </div>
-            </div>
-            <div
-              aria-hidden={phase !== "done"}
-              className={statusLayer(
-                phase,
-                "done",
-                "rounded-xl border border-emerald-900/40 bg-emerald-950/25 px-4 py-3 text-sm font-medium text-emerald-200/95",
-              )}
-            >
-              Analysis Complete
-            </div>
-            <div
-              aria-hidden={phase !== "error"}
-              className={statusLayer(
-                phase,
-                "error",
-                "rounded-xl border border-red-800/60 bg-red-950/35 px-4 py-3 text-sm text-red-100",
-                "start",
-              )}
-              role="alert"
-            >
-              {error ?? "Something went wrong."}
-            </div>
-          </div>
-        ) : null}
+      <div className="rg-bg" aria-hidden>
+        <div className="rg-bg-orb rg-bg-orb-1" />
+        <div className="rg-bg-orb rg-bg-orb-2" />
       </div>
 
-      {/* Results */}
-      {phase === "done" && reportPayload && (
-        <div className="animate-fade-in-up mt-10 space-y-8 sm:space-y-10">
-          <div className="grid min-w-0 gap-8 lg:grid-cols-5 lg:gap-10">
-            {/* Processed Output */}
-            <section className="min-w-0 lg:col-span-3">
-              <SectionTitle>Processed Output</SectionTitle>
-              <div className="overflow-hidden rounded-2xl border border-slate-800 bg-black shadow-xl shadow-black/40">
-                <div className="p-4 sm:p-6">
-                  <div className="relative aspect-video overflow-hidden rounded-xl bg-slate-950">
-                    {videoSrc ? (
-                      <>
-                        {!videoReady && (
-                          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-950/95">
-                            <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-700 border-t-cyan-500" />
-                            <p className="text-xs text-slate-500">Loading video…</p>
-                          </div>
-                        )}
-                        {videoLoadError ? (
-                          <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-amber-900/60 bg-amber-950/90 px-3 py-2 text-left text-[11px] leading-snug text-amber-100">
-                            {videoLoadError}
-                          </div>
-                        ) : null}
-                        <video
-                          key={videoSrc}
-                          className="relative z-0 h-full w-full object-contain"
-                          controls
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          preload="auto"
-                          src={videoSrc}
-                          onLoadedMetadata={() => setVideoReady(true)}
-                          onError={() => {
-                            setVideoReady(true);
-                            setVideoLoadError(
-                              "Could not decode this video in the browser. On Windows run `where ffmpeg` in a new terminal; if empty, fix PATH and restart the terminal, then re-run analysis. Check GET /health → ffmpeg_available. Use the same host in the URL as the API (or set NEXT_PUBLIC_API_URL).",
-                            );
-                          }}
-                        />
-                      </>
-                    ) : (
-                      <div className="flex h-full items-center justify-center p-6 text-slate-600">
-                        No video file
+      <main className="relative z-10 mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        {/* ── Hero ── */}
+        <header className="mb-10">
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-12">
+            <div>
+              <h1 className="rg-display text-5xl sm:text-6xl lg:text-7xl">
+                RoadGuard-X
+              </h1>
+              <p className="mt-5 max-w-lg text-base leading-relaxed text-zinc-400">
+                Explainable driving-scene intelligence — OpenCV feature extraction,
+                Random Forest classification, and rule-based reasoning. Fully offline.
+              </p>
+              <div className="mt-7 flex flex-wrap gap-2">
+                <span className="rg-pill">
+                  <span className="rg-pill-live" /> Local Processing
+                </span>
+                <span className="rg-pill">OpenCV</span>
+                <span className="rg-pill">Random Forest</span>
+                <span className="rg-pill">Explainable AI</span>
+              </div>
+            </div>
+            <HeroIllustration />
+          </div>
+
+          {modelInfo?.evaluation?.accuracy != null ? (
+            <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <HeroMetricCard
+                label="Model test accuracy"
+                value={`${(modelInfo.evaluation.accuracy * 100).toFixed(1)}%`}
+                icon={<IconTarget />}
+                accent="purple"
+                sparkPoints={[0.94, 0.96, 0.97, 0.98, 0.99, 0.996]}
+              />
+              <HeroMetricCard
+                label="F1 (macro)"
+                value={modelInfo.evaluation.f1_macro?.toFixed(3) ?? "—"}
+                icon={<IconChart />}
+                accent="blue"
+                sparkPoints={[0.97, 0.98, 0.985, 0.99, 0.992, 0.995]}
+              />
+              <HeroMetricCard
+                label="Features"
+                value="9"
+                icon={<IconLayers />}
+                accent="blue"
+                sparkPoints={[6, 7, 8, 8, 9, 9]}
+              />
+              <HeroMetricCard
+                label="Demo clip"
+                value="demo.mp4"
+                icon={<IconFilm />}
+                accent="purple"
+                sparkPoints={[1, 1, 1, 1, 1, 1]}
+              />
+            </div>
+          ) : null}
+        </header>
+
+        {/* ── Main + Sidebar ── */}
+        <div className="grid gap-6 xl:grid-cols-[1fr_340px] xl:gap-8">
+          <div className="min-w-0 space-y-6">
+            {/* Upload */}
+            <section>
+              <div
+                className={`rg-upload ${drag ? "rg-upload-drag" : ""} ${busy ? "pointer-events-none opacity-60" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (!busy) setDrag(true);
+                }}
+                onDragLeave={() => setDrag(false)}
+                onDrop={onDrop}
+              >
+                <div className="rg-upload-border" />
+                <UploadWaves />
+                <div className="rg-upload-inner px-6 py-10 text-center sm:px-10 sm:py-14">
+                  {previewUrl ? (
+                    <div className="relative z-10 mx-auto mb-5 max-w-sm overflow-hidden rounded-lg border border-white/[0.08]">
+                      <video
+                        src={previewUrl}
+                        className="aspect-video w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#05070A] to-transparent px-3 py-2">
+                        <p className="truncate font-mono text-xs text-zinc-300">{selectedFileName}</p>
                       </div>
-                    )}
+                    </div>
+                  ) : (
+                    <UploadIcon />
+                  )}
+                  <p className="relative z-10 mt-5 font-display text-xl font-semibold text-white sm:text-2xl">
+                    Analyse a driving clip
+                  </p>
+                  <p className="relative z-10 mx-auto mt-2 max-w-md text-sm text-zinc-500">
+                    Drag & drop or browse — try the bundled{" "}
+                    <span className="font-mono text-accent-blue">demo.mp4</span>
+                  </p>
+                  <div className="relative z-10 mt-8 flex flex-col items-center gap-3">
+                    <input
+                      ref={fileInputRef}
+                      id="fileInput"
+                      type="file"
+                      accept="video/mp4"
+                      className="sr-only"
+                      disabled={busy}
+                      aria-label="Choose a video file to analyse"
+                      onChange={handleFile}
+                    />
+                    <label
+                      htmlFor="fileInput"
+                      className={`rg-btn relative z-10 ${busy ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+                      </svg>
+                      Choose video
+                    </label>
+                  </div>
+                  {selectedFileName && !previewUrl ? (
+                    <p
+                      className="relative z-10 mx-auto mt-5 max-w-md truncate rounded-lg border border-white/[0.08] bg-black/40 px-3 py-2 text-sm text-zinc-300 backdrop-blur-sm"
+                      title={selectedFileName}
+                    >
+                      <span className="text-zinc-500">Selected · </span>
+                      <span className="font-mono">{selectedFileName}</span>
+                    </p>
+                  ) : null}
+                  <div className="relative z-10 mt-5 flex flex-wrap items-center justify-center gap-2">
+                    <span className="rg-tag">MP4</span>
+                    <span className="rg-tag">Local inference</span>
+                    <span className="rg-tag rg-tag-accent">No cloud</span>
                   </div>
                 </div>
               </div>
             </section>
 
-            <aside className="flex min-w-0 flex-col gap-8 lg:col-span-2">
-              {/* Analysis Metrics */}
-              <section>
-                <SectionTitle>Analysis Metrics</SectionTitle>
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 shadow-lg sm:p-6">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                    Last frame risk
-                  </p>
-                  {last?.risk ? (
-                    <div className="mt-4">
-                      <RiskBadge level={last.risk} />
-                    </div>
-                  ) : null}
-                  {last ? (
-                    <div className="mt-6 space-y-6">
-                      <ConfidenceBar value={conf} />
+            {/* Status */}
+            <div
+              className={`relative ${phase !== "idle" ? "min-h-[5.5rem]" : ""}`}
+              aria-live="polite"
+              aria-busy={phase === "uploading" || phase === "processing"}
+            >
+              {phase !== "idle" ? (
+                <div className="relative isolate min-h-[5.5rem]">
+                  <div
+                    aria-hidden={phase !== "uploading"}
+                    className={statusLayer(phase, "uploading", "rg-card px-4 py-3 text-sm text-zinc-400")}
+                  >
+                    <span className="text-accent-purple">↑</span> Uploading video...
+                  </div>
+                  <div
+                    aria-hidden={phase !== "processing"}
+                    className={statusLayer(
+                      phase,
+                      "processing",
+                      "rg-card border border-accent-purple/15 px-4 py-4",
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-8 w-8 shrink-0 animate-spin rounded-full border-2 border-zinc-700 border-t-accent-purple"
+                        aria-hidden
+                      />
                       <div>
-                        <h3 className="text-xs font-medium text-slate-500">
-                          Primary cause
-                        </h3>
-                        <p className="mt-2 text-sm text-slate-200">
-                          {humanize(last.primary_cause || "") || "—"}
-                        </p>
+                        <p className="font-medium text-zinc-100">Analysing frames</p>
+                        <p className="text-xs text-zinc-500">OpenCV · Random Forest · explainability</p>
                       </div>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-8 border-t border-slate-800/90 pt-8">
-                    <ExplanationPanel
-                      risk={explanation?.risk ?? last?.risk}
-                      confidence={explanation?.confidence ?? last?.confidence}
-                      primaryCause={
-                        explanation?.primary_cause ?? last?.primary_cause
-                      }
-                      summary={
-                        innerMeta?.explanation?.summary ??
-                        undefined
-                      }
-                      reasons={explanation?.reasons ?? last?.reasons}
-                      contributions={
-                        explanation?.feature_contributions ??
-                        last?.feature_contributions
-                      }
-                    />
-                  </div>
-
-                  {summaryImageSrc ? (
-                    <div className="mt-8 border-t border-slate-800/90 pt-8">
-                      <h3 className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                        Session summary
-                      </h3>
-                      <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/20 p-4">
-                        <img
-                          src={summaryImageSrc}
-                          alt="Session summary"
-                          className="w-full rounded-lg border border-slate-800/70"
-                        />
-                        <p className="mt-2 text-xs text-slate-500">
-                          Top risk frames from this session
-                        </p>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {timelineImageSrc ? (
-                    <div className="mt-8 border-t border-slate-800/90 pt-8">
-                      <h3 className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                        Risk timeline
-                      </h3>
-                      <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/20 p-4">
-                        <img
-                          src={timelineImageSrc}
-                          alt="Risk timeline"
-                          className="w-full rounded-lg border border-slate-800/70"
-                        />
-                        <p className="mt-2 text-xs text-slate-500">
-                          Confidence and complexity across all frames. Vertical dashed lines = lane departure events.
-                        </p>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {dangerClips.length > 0 ? (
-                    <div className="mt-8 border-t border-slate-800/90 pt-8">
-                      <h3 className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                        Flagged danger moments
-                      </h3>
-                      <div className="mt-4 space-y-4">
-                        {dangerClips.map((clipUrl, idx) => (
-                          <div
-                            key={clipUrl}
-                            className="rounded-xl border border-slate-800/80 bg-slate-950/20 p-4"
-                          >
-                            <video
-                              key={clipUrl}
-                              src={clipUrl}
-                              controls
-                              muted
-                              preload="metadata"
-                              playsInline
-                              className="max-w-full rounded-lg"
-                            />
-                            <p className="mt-2 text-xs text-slate-500">Clip {idx + 1}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-8 border-t border-slate-800/90 pt-8">
-                    <h3 className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                      Session overview
-                    </h3>
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4">
-                      <MetricCard
-                        label="Frames processed"
-                        value={String(
-                          summary?.total_frames ?? apiMeta?.frames ?? "—",
-                        )}
-                      />
-                      <MetricCard
-                        label="Scene stability"
-                        value={
-                          summary?.scene_stability != null
-                            ? Number(summary.scene_stability).toFixed(3)
-                            : "—"
-                        }
-                      />
-                      <MetricCard
-                        label="Risk trend"
-                        value={
-                          summary?.risk_trend != null
-                            ? String(summary.risk_trend)
-                            : "—"
-                        }
-                      />
-                      <MetricCard
-                        label="Complexity"
-                        value={
-                          summary?.avg_scene_complexity != null
-                            ? Number(summary.avg_scene_complexity).toFixed(3)
-                            : "—"
-                        }
-                      />
                     </div>
                   </div>
-
-                  <div className="mt-8 border-t border-slate-800/90 pt-8">
-                    <h3 className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                      Risk distribution (session)
-                    </h3>
-                    <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                      {Object.entries(dist).map(([label, count], idx) => (
-                        <div
-                          key={label}
-                          className="rounded-xl border border-slate-800/80 bg-slate-950/20 p-4"
-                        >
-                          <div className="mb-2 flex justify-between text-xs text-slate-400">
-                            <span className="font-medium">{label}</span>
-                            <span>{count}</span>
-                          </div>
-                          <div className="h-3 overflow-hidden rounded-full bg-slate-800">
-                            <div
-                              className={`h-full ${riskBarClass(label)} rg-fill-rect transition-all duration-700 ease-out motion-reduce:transition-none`}
-                              style={{
-                                width: `${(Number(count) / maxCount) * 100}%`,
-                                animationDelay: `${idx * 70}ms`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                      {Object.keys(dist).length === 0 && (
-                        <p className="text-sm text-slate-500">
-                          No distribution data
-                        </p>
-                      )}
-                    </div>
+                  <div
+                    aria-hidden={phase !== "done"}
+                    className={statusLayer(
+                      phase,
+                      "done",
+                      "rg-card border border-accent-purple/20 px-4 py-3 text-sm font-medium text-accent-purple",
+                    )}
+                  >
+                    Analysis complete
+                  </div>
+                  <div
+                    aria-hidden={phase !== "error"}
+                    className={statusLayer(
+                      phase,
+                      "error",
+                      "rg-card-inset border border-red-500/30 px-4 py-3 text-sm text-red-200",
+                      "start",
+                    )}
+                    role="alert"
+                  >
+                    {error ?? "Something went wrong."}
                   </div>
                 </div>
-              </section>
+              ) : null}
+            </div>
 
-              {/* Model Info */}
-              <section>
-                <SectionTitle>Model Info</SectionTitle>
-                <Tilt className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 shadow-lg sm:p-6">
-                  <dl className="space-y-4 text-sm">
-                    <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4">
-                      <dt className="text-slate-500">Model</dt>
-                      <dd className="text-slate-100">
-                        {apiMeta?.model ?? "Random Forest v2"}
-                      </dd>
-                    </div>
-                    <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4">
-                      <dt className="text-slate-500">Features</dt>
-                      <dd className="font-mono text-slate-200">
-                        {apiMeta?.features ?? 9}
-                      </dd>
-                    </div>
-                    <div className="border-t border-slate-800 pt-4">
-                      <dt className="text-slate-500">Training</dt>
-                      <dd className="mt-2 text-slate-200">
-                        Real + Synthetic
-                        {apiMeta?.training_data ? (
-                          <span className="mt-2 block text-xs leading-snug text-slate-500">
-                            {apiMeta.training_data}
-                          </span>
-                        ) : null}
-                      </dd>
-                    </div>
-                  </dl>
-                  {featureImportanceRows.length > 0 ? (
-                    <div className="mt-8 border-t border-slate-800 pt-6">
-                      <h3 className="text-sm font-semibold text-slate-200">
-                        What the model learned.
-                      </h3>
-                      <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/25 p-4">
-                        <svg viewBox="0 0 760 320" className="w-full">
-                          {featureImportanceRows.map(([name, raw], idx) => {
-                            const value = Number(raw) || 0;
-                            const y = 24 + idx * 30;
-                            const barW = (value / maxImportance) * 360;
-                            return (
-                              <g key={name} transform={`translate(0, ${y})`}>
-                                <text
-                                  x="8"
-                                  y="14"
-                                  fill="#94a3b8"
-                                  fontSize="12"
-                                  fontFamily="monospace"
-                                >
-                                  {name}
-                                </text>
-                                <rect
-                                  x="320"
-                                  y="2"
-                                  width="380"
-                                  height="16"
-                                  rx="6"
-                                  fill="#1e293b"
-                                />
-                                <rect
-                                  x="320"
-                                  y="2"
-                                  width={Math.max(4, barW)}
-                                  height="16"
-                                  rx="6"
-                                  fill="#38bdf8"
-                                  className="rg-bar-rect"
-                                  style={{
-                                    animationDelay: `${idx * 80}ms`,
-                                  }}
-                                />
-                                <text
-                                  x="710"
-                                  y="14"
-                                  textAnchor="end"
-                                  fill="#e2e8f0"
-                                  fontSize="12"
-                                  fontFamily="monospace"
-                                >
-                                  {(value * 100).toFixed(1)}%
-                                </text>
-                              </g>
-                            );
-                          })}
-                        </svg>
-                        <p className="mt-3 text-xs text-slate-500">
-                          Trained: {modelInfo?.timestamp ?? "unknown"} · Samples:{" "}
-                          {modelInfo?.n_samples ?? 0}
-                        </p>
+            <SampleOutputGallery />
+
+            {/* Results */}
+            {phase === "done" && reportPayload && (
+              <div className="animate-fade-in-up space-y-10">
+                <section>
+                  <SectionTitle>Processed output</SectionTitle>
+                  <Panel className="overflow-hidden shadow-lift">
+                    <div className="p-4 sm:p-6">
+                      <div className="relative aspect-video overflow-hidden rounded-lg bg-[#05070A]">
+                        {videoSrc ? (
+                          <>
+                            {!videoReady && (
+                              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#05070A]/95">
+                                <div className="h-9 w-9 animate-spin rounded-full border-2 border-zinc-700 border-t-accent-purple" />
+                                <p className="text-xs text-zinc-500">Loading video…</p>
+                              </div>
+                            )}
+                            {videoLoadError ? (
+                              <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-red-900/60 bg-red-950/90 px-3 py-2 text-left text-[11px] leading-snug text-red-100">
+                                {videoLoadError}
+                              </div>
+                            ) : null}
+                            <video
+                              key={videoSrc}
+                              className="relative z-0 h-full w-full object-contain"
+                              controls
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              preload="auto"
+                              src={videoSrc}
+                              onLoadedMetadata={() => setVideoReady(true)}
+                              onError={() => {
+                                setVideoReady(true);
+                                setVideoLoadError(
+                                  "Could not decode this video in the browser. On Windows run `where ffmpeg` in a new terminal; if empty, fix PATH and restart the terminal, then re-run analysis. Check GET /health → ffmpeg_available. Use the same host in the URL as the API (or set NEXT_PUBLIC_API_URL).",
+                                );
+                              }}
+                            />
+                          </>
+                        ) : (
+                          <div className="flex h-full items-center justify-center p-6 text-zinc-500">
+                            No video file
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ) : null}
-                  <ModelEvaluationPanel modelInfo={modelInfo} apiBase={apiBase} />
-                </Tilt>
-              </section>
-            </aside>
-          </div>
-        </div>
-      )}
+                  </Panel>
+                </section>
 
-      <footer className="mt-12 border-t border-slate-800 pt-6 text-center text-xs text-slate-600 sm:mt-16">
-        API: <code className="text-slate-500">{apiBase}</code>
-        <span className="mx-2">·</span>
-        CLI:{" "}
-        <code className="text-slate-500">python main.py --source sample</code>
-      </footer>
+                <section>
+                  <SectionTitle>Analysis metrics</SectionTitle>
+                  <Panel className="p-5 sm:p-6">
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      <div>
+                        <p className="rg-stat-label">Last frame risk</p>
+                        {last?.risk ? (
+                          <div className="mt-4">
+                            <RiskBadge level={last.risk} />
+                          </div>
+                        ) : null}
+                        {last ? (
+                          <div className="mt-6">
+                            <ConfidenceBar value={conf} />
+                          </div>
+                        ) : null}
+                      </div>
+                      <SubSection title="Session overview" className="mt-0 border-0 pt-0">
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <MetricCard
+                            label="Frames processed"
+                            value={String(summary?.total_frames ?? apiMeta?.frames ?? "—")}
+                          />
+                          <MetricCard
+                            label="Scene stability"
+                            value={
+                              summary?.scene_stability != null
+                                ? Number(summary.scene_stability).toFixed(3)
+                                : "—"
+                            }
+                          />
+                          <MetricCard
+                            label="Risk trend"
+                            value={summary?.risk_trend != null ? String(summary.risk_trend) : "—"}
+                          />
+                          <MetricCard
+                            label="Complexity"
+                            value={
+                              summary?.avg_scene_complexity != null
+                                ? Number(summary.avg_scene_complexity).toFixed(3)
+                                : "—"
+                            }
+                          />
+                        </div>
+                      </SubSection>
+                    </div>
+
+                    <div className="mt-8 border-t border-white/[0.06] pt-8">
+                      <ExplanationPanel
+                        risk={explanation?.risk ?? last?.risk}
+                        confidence={explanation?.confidence ?? last?.confidence}
+                        primaryCause={explanation?.primary_cause ?? last?.primary_cause}
+                        summary={innerMeta?.explanation?.summary ?? undefined}
+                        reasons={explanation?.reasons ?? last?.reasons}
+                        contributions={
+                          explanation?.feature_contributions ?? last?.feature_contributions
+                        }
+                      />
+                    </div>
+
+                    <div className="mt-8 grid gap-6 lg:grid-cols-2">
+                      {summaryImageSrc ? (
+                        <SubSection title="Session summary" className="mt-0 border-0 pt-0">
+                          <div className="rg-card-inset mt-4 p-4">
+                            <img
+                              src={summaryImageSrc}
+                              alt="Session summary"
+                              className="w-full rounded-lg border border-white/[0.06]"
+                            />
+                            <p className="mt-2 text-xs text-zinc-500">Top risk frames from this session</p>
+                          </div>
+                        </SubSection>
+                      ) : null}
+                      {timelineImageSrc ? (
+                        <SubSection title="Risk timeline" className="mt-0 border-0 pt-0">
+                          <div className="rg-card-inset mt-4 p-4">
+                            <img
+                              src={timelineImageSrc}
+                              alt="Risk timeline"
+                              className="w-full rounded-lg border border-white/[0.06]"
+                            />
+                            <p className="mt-2 text-xs text-zinc-500">
+                              Confidence and complexity across all frames.
+                            </p>
+                          </div>
+                        </SubSection>
+                      ) : null}
+                    </div>
+
+                    {dangerClips.length > 0 ? (
+                      <SubSection title="Flagged danger moments">
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          {dangerClips.map((clipUrl, idx) => (
+                            <div key={clipUrl} className="rg-card-inset p-4">
+                              <video
+                                key={clipUrl}
+                                src={clipUrl}
+                                controls
+                                muted
+                                preload="metadata"
+                                playsInline
+                                className="max-w-full rounded-lg"
+                              />
+                              <p className="mt-2 text-xs text-zinc-500">Clip {idx + 1}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </SubSection>
+                    ) : null}
+
+                    <SubSection title="Risk distribution (session)">
+                      <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                        {Object.entries(dist).map(([label, count], idx) => (
+                          <div key={label} className="rg-card-inset p-4">
+                            <div className="mb-2 flex justify-between text-xs text-zinc-500">
+                              <span className="font-medium text-zinc-200">{label}</span>
+                              <span className="font-mono">{count}</span>
+                            </div>
+                            <div className="rg-bar-track h-3">
+                              <div
+                                className={`h-full ${riskBarClass(label)} rg-fill-rect transition-all duration-700 ease-out motion-reduce:transition-none`}
+                                style={{
+                                  width: `${(Number(count) / maxCount) * 100}%`,
+                                  animationDelay: `${idx * 70}ms`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        {Object.keys(dist).length === 0 && (
+                          <p className="text-sm text-zinc-500">No distribution data</p>
+                        )}
+                      </div>
+                    </SubSection>
+                  </Panel>
+                </section>
+              </div>
+            )}
+          </div>
+
+          {/* ── Sticky sidebar ── */}
+          <aside className="rg-sidebar space-y-6">
+            <Panel className="p-5">
+              <div className="flex items-center gap-2">
+                <div className="rg-icon-purple flex h-8 w-8 items-center justify-center rounded-lg">
+                  <IconBrain />
+                </div>
+                <h2 className="font-display text-sm font-semibold text-zinc-100">Model info</h2>
+              </div>
+              <dl className="mt-5 space-y-4 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="rg-stat-label">Model</dt>
+                  <dd className="text-right text-zinc-200">
+                    {apiMeta?.model ?? "Random Forest v2"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="rg-stat-label">Features</dt>
+                  <dd className="font-mono text-zinc-200">{apiMeta?.features ?? 9}</dd>
+                </div>
+                <div className="border-t border-white/[0.06] pt-4">
+                  <dt className="rg-stat-label">Training</dt>
+                  <dd className="mt-2 text-zinc-300">
+                    Real + Synthetic
+                    {(apiMeta?.training_data || modelInfo?.n_samples) ? (
+                      <span className="mt-2 block text-xs leading-snug text-zinc-500">
+                        {apiMeta?.training_data ??
+                          `${modelInfo?.n_samples ?? 0} synthetic samples`}
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              </dl>
+              {featureImportanceRows.length > 0 ? (
+                <div className="mt-6 border-t border-white/[0.06] pt-5">
+                  <h3 className="text-sm font-semibold text-zinc-200">What the model learned</h3>
+                  <FeatureImportanceChart
+                    rows={featureImportanceRows}
+                    maxImportance={maxImportance}
+                    timestamp={modelInfo?.timestamp}
+                    nSamples={modelInfo?.n_samples}
+                  />
+                </div>
+              ) : null}
+              <ModelEvaluationPanel modelInfo={modelInfo} apiBase={apiBase} />
+            </Panel>
+          </aside>
+        </div>
+
+        <footer className="mt-16 border-t border-white/[0.06] pt-8 text-center text-xs text-zinc-600">
+          <span>API </span>
+          <code className="font-mono text-accent-blue/90">{apiBase}</code>
+          <span className="mx-2 opacity-40">·</span>
+          <span>CLI </span>
+          <code className="font-mono text-zinc-400">python main.py --source sample</code>
+        </footer>
       </main>
     </>
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: "purple" | "blue";
+}) {
+  const accentBorder =
+    accent === "purple"
+      ? "border-accent-purple/15"
+      : accent === "blue"
+        ? "border-accent-blue/15"
+        : "";
+
   return (
-    <div className="rounded-xl border border-slate-800/90 bg-slate-950/30 p-4 transition-colors duration-300 hover:border-slate-700/90 sm:p-5">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 break-words font-mono text-sm text-slate-200">
-        {value}
-      </div>
+    <div className={`rg-stat-tile ${accentBorder}`}>
+      <div className="rg-stat-label">{label}</div>
+      <div className="rg-stat-value text-sm">{value}</div>
     </div>
   );
 }
