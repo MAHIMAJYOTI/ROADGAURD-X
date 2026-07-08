@@ -42,6 +42,18 @@ def _roi_trapezoid(
     return mask
 
 
+def _hough_segment_endpoints(line) -> Optional[Tuple[float, float, float, float]]:
+    """
+    Normalize a HoughLinesP segment to (x1, y1, x2, y2).
+
+    OpenCV may return shape (1, 4) or (4,); indexing line[0] alone breaks on some builds.
+    """
+    coords = np.asarray(line, dtype=np.float64).reshape(-1)
+    if coords.size < 4:
+        return None
+    return float(coords[0]), float(coords[1]), float(coords[2]), float(coords[3])
+
+
 def detect_lanes(
     image: np.ndarray,
     *,
@@ -85,7 +97,10 @@ def detect_lanes(
 
     if lines_p is not None:
         for line in lines_p:
-            x1, y1, x2, y2 = line[0].astype(float)
+            endpoints = _hough_segment_endpoints(line)
+            if endpoints is None:
+                continue
+            x1, y1, x2, y2 = endpoints
             dx = x2 - x1
             if abs(dx) < 1e-3:
                 continue
