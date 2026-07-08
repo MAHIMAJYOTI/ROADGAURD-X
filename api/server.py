@@ -39,6 +39,28 @@ IDLE_RESET_AFTER_DONE_SEC = 10.0
 PIPELINE_TIMEOUT_MESSAGE = "Processing timeout (video too long or system busy)"
 ALLOWED_VIDEO_EXT = frozenset({".mp4", ".avi", ".mov", ".mkv", ".webm"})
 
+# Render free tier = 512 MB RAM. Full demo.mp4 (~290 frames) OOMs without a cap.
+def _is_cloud_deploy() -> bool:
+    return os.environ.get("RENDER") == "true" or bool(os.environ.get("RAILWAY_ENVIRONMENT"))
+
+
+def _pipeline_max_frames() -> int:
+    raw = os.environ.get("PIPELINE_MAX_FRAMES", "").strip()
+    if raw:
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            pass
+    return 90 if _is_cloud_deploy() else 0
+
+
+def _pipeline_save_clips() -> bool:
+    if os.environ.get("PIPELINE_SAVE_CLIPS", "").lower() in ("0", "false", "no"):
+        return False
+    if _is_cloud_deploy():
+        return False
+    return True
+
 MODEL_LABEL = "Random Forest v2"
 FEATURE_COUNT = 9
 
@@ -218,10 +240,12 @@ def _run_pipeline_subprocess(input_video: Path) -> None:
         str(input_video),
         "--headless",
         "--save-video",
-        "--save-clips",
-        "--max-frames",
-        "0",
     ]
+    if _pipeline_save_clips():
+        cmd.append("--save-clips")
+    max_frames = _pipeline_max_frames()
+    cmd.extend(["--max-frames", str(max_frames)])
+    print(f"[API] Pipeline cmd max_frames={max_frames} save_clips={_pipeline_save_clips()}")
     try:
         proc = subprocess.run(
             cmd,
@@ -298,6 +322,8 @@ def health() -> dict:
         "model_exists": model_path.is_file(),
         "samples_available": samples_ok,
         "ffmpeg_available": resolve_ffmpeg_executable() is not None,
+        "deploy_mode": "cloud" if _is_cloud_deploy() else "local",
+        "pipeline_max_frames": _pipeline_max_frames(),
     }
 
 
