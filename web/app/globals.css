@@ -358,6 +358,19 @@ body {
   box-shadow: 0 4px 16px rgba(109, 94, 247, 0.28);
 }
 
+.rg-btn-secondary {
+  color: #e4e4e7;
+  background: rgba(13, 17, 23, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.rg-btn-secondary:hover:not(.cursor-not-allowed):not(:disabled) {
+  background: rgba(22, 27, 34, 0.95);
+  border-color: rgba(79, 140, 255, 0.35);
+  box-shadow: 0 2px 12px rgba(79, 140, 255, 0.12);
+}
+
 .rg-tag {
   border-radius: 0.375rem;
   border: 1px solid var(--rg-border);

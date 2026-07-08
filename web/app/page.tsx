@@ -45,9 +45,38 @@ function resolveApiBase(hostname?: string, protocol?: string): string {
   return "http://localhost:8000";
 }
 
-/** Default API origin until client mount resolves hostname. */
+/** Default API origin for SSR and first paint. */
 function getDefaultApiBase(): string {
-  return resolveApiBase();
+  const env = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+  if (env) return env;
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    return resolveApiBase(hostname, protocol);
+  }
+  if (process.env.NEXT_PUBLIC_VERCEL_URL || process.env.VERCEL) {
+    return DEPLOYED_API_DEFAULT;
+  }
+  return "http://localhost:8000";
+}
+
+type ApiHealth = "checking" | "ok" | "waking" | "error";
+
+async function pingApiHealth(
+  base: string,
+  attempts = 4,
+): Promise<"ok" | "error"> {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const res = await fetch(`${base}/health`, { cache: "no-store" });
+      if (res.ok) return "ok";
+    } catch {
+      // Render free tier cold start — retry.
+    }
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, 8000));
+    }
+  }
+  return "error";
 }
 
 type StatusResponse = { status: string; message?: string };
@@ -446,6 +475,8 @@ function ModelEvaluationPanel({
 
 export default function Home() {
   const [apiBase, setApiBase] = useState(getDefaultApiBase);
+  const [apiHealth, setApiHealth] = useState<ApiHealth>("checking");
+  const [isDeployed, setIsDeployed] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [reportPayload, setReportPayload] = useState<ReportDone | null>(null);
@@ -461,7 +492,23 @@ export default function Home() {
   useEffect(() => {
     const { protocol, hostname } = window.location;
     setApiBase(resolveApiBase(hostname, protocol));
+    setIsDeployed(
+      hostname.endsWith(".vercel.app") || hostname.endsWith(".onrender.com"),
+    );
   }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    const warm = async () => {
+      setApiHealth("checking");
+      const result = await pingApiHealth(apiBase);
+      if (!ignore) setApiHealth(result === "ok" ? "ok" : "error");
+    };
+    void warm();
+    return () => {
+      ignore = true;
+    };
+  }, [apiBase]);
 
   useEffect(() => {
     return () => {
@@ -560,20 +607,14 @@ export default function Home() {
     };
   }, [apiBase]);
 
-  const onAnalyze = useCallback(
-    async (file: File) => {
+  const beginAnalysis = useCallback(
+    async (request: () => Promise<Response>, clearInput?: boolean) => {
       setError(null);
       setReportPayload(null);
       setPhase("uploading");
 
-      const fd = new FormData();
-      fd.append("file", file);
-
       try {
-        const res = await fetch(`${apiBase}/analyze`, {
-          method: "POST",
-          body: fd,
-        });
+        const res = await request();
 
         if (res.status === 409) {
           setPhase("error");
@@ -594,24 +635,50 @@ export default function Home() {
         }
 
         if ((j as { status?: string }).status === "processing") {
-          if (fileInputRef.current) fileInputRef.current.value = "";
+          if (clearInput && fileInputRef.current) fileInputRef.current.value = "";
           setPhase("processing");
           startPolling();
           void pollStatus();
-          return;
         }
       } catch (e) {
         setPhase("error");
         const msg = e instanceof Error ? e.message : "Request failed";
         setError(
           msg === "Failed to fetch"
-            ? `Cannot reach API at ${apiBase}. If this is a deployed site, redeploy the API with CORS for your frontend (Vercel → Render). On Render free tier, wait ~30s and retry (cold start).`
+            ? `Cannot reach API at ${apiBase}. Render free tier may be waking up — wait 30s and click “Run demo”.`
             : msg,
         );
       }
     },
     [apiBase, pollStatus, startPolling],
   );
+
+  const onAnalyze = useCallback(
+    async (file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      await beginAnalysis(
+        () =>
+          fetch(`${apiBase}/analyze`, {
+            method: "POST",
+            body: fd,
+          }),
+        true,
+      );
+    },
+    [apiBase, beginAnalysis],
+  );
+
+  const onTryDemo = useCallback(async () => {
+    setSelectedFileName("demo.mp4 (bundled)");
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    await beginAnalysis(() =>
+      fetch(`${apiBase}/analyze/sample`, { method: "POST" }),
+    );
+  }, [apiBase, beginAnalysis]);
 
   const handleFile = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -809,7 +876,7 @@ export default function Home() {
                     Drag & drop or browse — try the bundled{" "}
                     <span className="font-mono text-accent-blue">demo.mp4</span>
                   </p>
-                  <div className="relative z-10 mt-8 flex flex-col items-center gap-3">
+                  <div className="relative z-10 mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                     <input
                       ref={fileInputRef}
                       id="fileInput"
@@ -829,6 +896,14 @@ export default function Home() {
                       </svg>
                       Choose video
                     </label>
+                    <button
+                      type="button"
+                      className={`rg-btn rg-btn-secondary relative z-10 ${busy || apiHealth === "checking" ? "cursor-not-allowed opacity-50" : ""}`}
+                      disabled={busy || apiHealth === "checking"}
+                      onClick={() => void onTryDemo()}
+                    >
+                      Run demo
+                    </button>
                   </div>
                   {selectedFileName && !previewUrl ? (
                     <p
@@ -841,9 +916,21 @@ export default function Home() {
                   ) : null}
                   <div className="relative z-10 mt-5 flex flex-wrap items-center justify-center gap-2">
                     <span className="rg-tag">MP4</span>
-                    <span className="rg-tag">Local inference</span>
-                    <span className="rg-tag rg-tag-accent">No cloud</span>
+                    <span className="rg-tag">OpenCV + RF</span>
+                    <span className="rg-tag rg-tag-accent">
+                      {isDeployed ? "Cloud demo" : "Local inference"}
+                    </span>
                   </div>
+                  {apiHealth === "checking" ? (
+                    <p className="relative z-10 mt-4 text-xs text-zinc-500">
+                      Waking API… first load can take up to 30s on free tier.
+                    </p>
+                  ) : null}
+                  {apiHealth === "error" ? (
+                    <p className="relative z-10 mt-4 text-xs text-orange-300/90">
+                      API is starting — wait 30s, refresh, then click <strong>Run demo</strong>.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </section>
@@ -1149,6 +1236,22 @@ export default function Home() {
         </div>
 
         <footer className="mt-16 border-t border-white/[0.06] pt-8 text-center text-xs text-zinc-600">
+          <span
+            className={
+              apiHealth === "ok"
+                ? "text-emerald-400/90"
+                : apiHealth === "checking"
+                  ? "text-zinc-500"
+                  : "text-orange-300/90"
+            }
+          >
+            {apiHealth === "ok"
+              ? "● API connected"
+              : apiHealth === "checking"
+                ? "○ API waking up…"
+                : "○ API slow — retry in 30s"}
+          </span>
+          <span className="mx-2 opacity-40">·</span>
           <span>API </span>
           <code className="font-mono text-accent-blue/90">{apiBase}</code>
           <span className="mx-2 opacity-40">·</span>

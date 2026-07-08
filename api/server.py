@@ -20,7 +20,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -552,28 +552,25 @@ def get_report() -> JSONResponse:
         return JSONResponse(content={"status": "idle"})
 
 
-@app.post("/analyze")
-async def analyze(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-) -> JSONResponse:
-    """Upload a video and queue CLI processing in the background."""
+def _resolve_sample_video() -> Path | None:
+    samples_dir = RG_ROOT / "samples"
+    for name in ("demo.mp4", "sample.mp4"):
+        candidate = samples_dir / name
+        if candidate.is_file():
+            return candidate
+    if samples_dir.is_dir():
+        try:
+            for candidate in sorted(samples_dir.iterdir()):
+                if candidate.is_file() and candidate.suffix.lower() in ALLOWED_VIDEO_EXT:
+                    return candidate
+        except OSError:
+            return None
+    return None
+
+
+def _queue_analysis(background_tasks: BackgroundTasks, video_path: Path) -> JSONResponse:
+    """Mark processing and run pipeline in background."""
     global _pipeline_status, _error_message, _result_payload
-
-    if not file.filename:
-        return JSONResponse(
-            status_code=400,
-            content={"status": "error", "message": "Missing filename"},
-        )
-
-    base_name = os.path.basename(file.filename)
-    suffix = Path(base_name).suffix.lower() or ".mp4"
-    if suffix not in ALLOWED_VIDEO_EXT:
-        return JSONResponse(
-            status_code=400,
-            content={"status": "error", "message": "Unsupported video format."},
-        )
 
     cleanup_stale_uploads()
 
@@ -592,14 +589,35 @@ async def analyze(
         _error_message = None
         _result_payload = None
 
+    background_tasks.add_task(run_pipeline, video_path)
+    return JSONResponse(content={"status": "processing"})
+
+@app.post("/analyze")
+async def analyze(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+) -> JSONResponse:
+    """Upload a video and queue CLI processing in the background."""
+    if not file.filename:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "Missing filename"},
+        )
+
+    base_name = os.path.basename(file.filename)
+    suffix = Path(base_name).suffix.lower() or ".mp4"
+    if suffix not in ALLOWED_VIDEO_EXT:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "Unsupported video format."},
+        )
+
     ts = int(time.time() * 1000)
     short_id = uuid.uuid4().hex[:8]
     dest = (UPLOAD_DIR / f"{ts}_{short_id}{suffix}").resolve()
     try:
         dest.relative_to(UPLOAD_DIR.resolve())
     except ValueError:
-        with _state_lock:
-            _reset_to_idle_unlocked()
         return JSONResponse(
             status_code=400,
             content={"status": "error", "message": "Invalid upload path."},
@@ -608,18 +626,12 @@ async def analyze(
     try:
         content = await file.read()
         if not content:
-            with _state_lock:
-                _reset_to_idle_unlocked()
             return JSONResponse(
                 status_code=400,
                 content={"status": "error", "message": "Empty file."},
             )
         dest.write_bytes(content)
     except OSError as e:
-        with _state_lock:
-            _pipeline_status = "error"
-            _error_message = str(e)
-            _result_payload = {"status": "error", "message": str(e)}
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": f"Could not save upload: {e}"},
@@ -627,8 +639,31 @@ async def analyze(
     finally:
         await file.close()
 
-    background_tasks.add_task(run_pipeline, dest)
-    return JSONResponse(content={"status": "processing"})
+    return _queue_analysis(background_tasks, dest)
+
+
+@app.post("/analyze/sample")
+async def analyze_sample(background_tasks: BackgroundTasks) -> JSONResponse:
+    """Run analysis on the bundled demo clip (no upload — reliable for deploy demos)."""
+    sample = _resolve_sample_video()
+    if sample is None:
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": "Bundled sample video not found on server."},
+        )
+
+    ts = int(time.time() * 1000)
+    short_id = uuid.uuid4().hex[:8]
+    dest = (UPLOAD_DIR / f"{ts}_{short_id}_demo{sample.suffix.lower()}").resolve()
+    try:
+        dest.write_bytes(sample.read_bytes())
+    except OSError as e:
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": f"Could not prepare sample: {e}"},
+        )
+
+    return _queue_analysis(background_tasks, dest)
 
 
 @app.get("/download/video")
