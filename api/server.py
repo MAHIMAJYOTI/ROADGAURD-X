@@ -51,7 +51,7 @@ def _pipeline_max_frames() -> int:
             return max(0, int(raw))
         except ValueError:
             pass
-    return 90 if _is_cloud_deploy() else 0
+    return 60 if _is_cloud_deploy() else 0
 
 
 def _pipeline_save_clips() -> bool:
@@ -227,6 +227,68 @@ def _terminate_child_cleanly(proc: subprocess.Popen | None) -> None:
             pass
 
 
+def _subprocess_env() -> dict[str, str]:
+    env = os.environ.copy()
+    for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        env.setdefault(key, "1")
+    return env
+
+
+def _maybe_trim_for_cloud(source: Path) -> tuple[Path, Path | None]:
+    """Downscale + cap frames with ffmpeg before CV pipeline (Render 512 MB)."""
+    if not _is_cloud_deploy():
+        return source, None
+    from roadguard_x.utils.clip_writer import resolve_ffmpeg_executable
+
+    exe = resolve_ffmpeg_executable()
+    if not exe:
+        return source, None
+
+    n = _pipeline_max_frames()
+    if n <= 0:
+        return source, None
+
+    dest = UPLOAD_DIR / f"trim_{uuid.uuid4().hex}.mp4"
+    scale = os.environ.get("CLOUD_VIDEO_SCALE", "640")
+    cmd = [
+        exe,
+        "-y",
+        "-i",
+        str(source),
+        "-vf",
+        f"scale={scale}:-2",
+        "-frames:v",
+        str(n),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "28",
+        "-movflags",
+        "+faststart",
+        "-an",
+        str(dest),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        print(f"[API] Cloud trim skipped: {e}")
+        return source, None
+
+    if proc.returncode != 0 or not dest.is_file():
+        tail = (proc.stderr or proc.stdout or "")[-400:]
+        print(f"[API] Cloud trim failed, using original. {tail}")
+        try:
+            dest.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return source, None
+
+    print(f"[API] Cloud trim ok ({n} frames max, scale={scale})")
+    return dest, dest
+
+
 def _run_pipeline_subprocess(input_video: Path) -> None:
     """Invoke existing main.py (unchanged CV pipeline)."""
     main_py = RG_ROOT / "main.py"
@@ -253,6 +315,7 @@ def _run_pipeline_subprocess(input_video: Path) -> None:
             capture_output=True,
             text=True,
             timeout=SUBPROCESS_TIMEOUT_SEC,
+            env=_subprocess_env(),
         )
     except subprocess.TimeoutExpired as e:
         # subprocess.run may not expose .process depending on Python version/platform.
@@ -400,6 +463,8 @@ def run_pipeline(saved_path: Path) -> None:
     global _pipeline_status, _error_message, _result_payload
 
     print("[API] Processing started...")
+    work_path = saved_path
+    trimmed_path: Path | None = None
     try:
         # Clear previous artifacts to avoid stale UI images.
         try:
@@ -413,7 +478,8 @@ def run_pipeline(saved_path: Path) -> None:
         except OSError:
             pass
 
-        _run_pipeline_subprocess(saved_path)
+        work_path, trimmed_path = _maybe_trim_for_cloud(saved_path)
+        _run_pipeline_subprocess(work_path)
 
         if not REPORT_PATH.is_file():
             raise RuntimeError("Pipeline finished but report.json was not created.")
@@ -438,10 +504,13 @@ def run_pipeline(saved_path: Path) -> None:
             _error_message = msg
             _result_payload = err_body
     finally:
-        try:
-            saved_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        for p in (saved_path, trimmed_path):
+            if p is None:
+                continue
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 @app.get("/status")

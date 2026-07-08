@@ -9,9 +9,15 @@ envVars:
   - key: PYTHON_VERSION
     value: "3.12.7"
   - key: PIPELINE_MAX_FRAMES
-    value: "90"
+    value: "60"
   - key: PIPELINE_SAVE_CLIPS
     value: "false"
+  - key: CLOUD_VIDEO_SCALE
+    value: "640"
+  - key: OMP_NUM_THREADS
+    value: "1"
+  - key: OPENBLAS_NUM_THREADS
+    value: "1"
   - key: CORS_ORIGINS
     sync: false
   - key: CORS_ORIGIN_REGEX
