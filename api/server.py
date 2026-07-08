@@ -271,6 +271,15 @@ def _artifact_payload() -> dict:
     return payload
 
 
+@app.get("/")
+def root() -> dict:
+    return {
+        "service": "RoadGuard-X API",
+        "health": "/health",
+        "docs": "/docs",
+    }
+
+
 @app.get("/health")
 def health() -> dict:
     from roadguard_x.utils.clip_writer import resolve_ffmpeg_executable

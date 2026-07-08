@@ -22,11 +22,32 @@ import {
 
 const POLL_MS = 2000;
 
-/** Default API origin (env wins). LAN auto-detection runs in the browser after mount. */
+/** Render API — used when the UI is on Vercel without NEXT_PUBLIC_API_URL set at build. */
+const DEPLOYED_API_DEFAULT = "https://roadgaurd-x.onrender.com";
+
+function resolveApiBase(hostname?: string, protocol?: string): string {
+  const env = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+  if (env) return env;
+
+  if (hostname) {
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:8000";
+    }
+    if (hostname.endsWith(".vercel.app") || hostname.endsWith(".onrender.com")) {
+      return DEPLOYED_API_DEFAULT;
+    }
+    // LAN demo: API on same host, port 8000
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) && protocol) {
+      return `${protocol}//${hostname}:8000`;
+    }
+  }
+
+  return "http://localhost:8000";
+}
+
+/** Default API origin until client mount resolves hostname. */
 function getDefaultApiBase(): string {
-  return (
-    process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000"
-  );
+  return resolveApiBase();
 }
 
 type StatusResponse = { status: string; message?: string };
@@ -438,15 +459,8 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const env = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
-    if (env) {
-      setApiBase(env);
-      return;
-    }
     const { protocol, hostname } = window.location;
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      setApiBase(`${protocol}//${hostname}:8000`);
-    }
+    setApiBase(resolveApiBase(hostname, protocol));
   }, []);
 
   useEffect(() => {
